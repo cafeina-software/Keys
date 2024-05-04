@@ -1,0 +1,36 @@
+# About
+
+Keys is an application to manage keys in the Haiku keystore. It aims to allow
+the user to list the existing keyrings in the store, and its keys and
+applications allowed to access each keyrings, as well as to see each key
+infomation and to copy its secret contents to the clipboard. In addition, it
+allows to create or remove keyrings, and in a keyring, to create or remove keys,
+or also to revoke an application access to that keyring.
+
+It offers the option to force the start of the keystore_server in case of
+for any reason it was not yet started or if it was closed afterwards.
+
+# Building
+
+To build this application, open Terminal and move to the root directory of the
+source code (where the Makefile is located) and run:
+
+make && make bindcatalogs
+
+# Contributing
+
+If you have any comment, suggestion, criticism or a bug or enhancement request,
+please open a ticket and provide the relevant information. Pull requests are
+also welcome.
+
+# Disclaimer
+
+This software is under development and it could contain known and unknown bugs
+or any other undiscovered issues. It comes without warranty of any kind and use
+it at your own risk. Please backup your data before using it to avoid data loss
+due to bugs or crashes.
+
+# License
+
+This application is free and open source software. For the licensing terms under
+which this application's source code is released, please read LICENSE.

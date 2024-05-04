@@ -1,0 +1,116 @@
+1	English	application/x.vnd.cafeapp.keystoremgmt	4170188105
+Quit	Main menu		Quit
+Cancel	Add keyring dialog box		Cancel
+Web	Keyring view		Web
+Remove keyring	Main menu		Remove keyring
+Password key	Main menu		Password key
+Owner (*)	Data viewer dialog box		Owner (*)
+Do you want to remove the key \"%key%\" from this keyring?	Keyring view		Do you want to remove the key \"%key%\" from this keyring?
+Error	Add keyring dialog box		Error
+Remove keyring	Main window		Remove keyring
+Key	Add key dialog box		Key
+Remove	Keyring view		Remove
+Cancel	Main window		Cancel
+Restart keystore server	Main menu		Restart keystore server
+Identifier	Data viewer dialog box		Identifier
+Key data	Data viewer dialog box		Key data
+Keys	Main menu		Keys
+Keyring: %s.\n\n%d key(s): %d generic-type, %d password-type.\n%d application(s).	Main window		Keyring: %s.\n\n%d key(s): %d generic-type, %d password-type.\n%d application(s).
+Remove keyring: not allowed	Main window		Remove keyring: not allowed
+Creation time (*)	Data viewer dialog box		Creation time (*)
+Keystore information	Main window		Keystore information
+Web	Add key dialog box		Web
+Generic key	Add key dialog box		Generic key
+Secondary identifier (optional)	Add key dialog box		Secondary identifier (optional)
+Do you want to remove this application from this keyring?	Keyring view		Do you want to remove this application from this keyring?
+Application	Keyring view		Application
+Error	Keyring view		Error
+Volume	Add key dialog box		Volume
+Generic	Add key dialog box		Generic
+Keyring	Data viewer dialog box		Keyring
+Password key	Add key dialog box		Password key
+Volume	Keyring view		Volume
+Remove application	Keyring view		Remove application
+Key data\n(hex dump)	Data viewer dialog box		Key data\n(hex dump)
+The BeOS and Haiku community members.	About box		The BeOS and Haiku community members.
+0.1\tInitial version.	About box		0.1\tInitial version.
+Sec. identifier	Data viewer dialog box		Sec. identifier
+Password	Keyring view		Password
+Type	Keyring view		Type
+Data viewer	Data viewer dialog box		Data viewer
+Remove	Main window		Remove
+Certificate key	Add key dialog box		Certificate key
+View key data	Keyring view		View key data
+Add key	Keyring view		Add key
+Keystore.\n\n%d keyring(s).\n	Main window		Keystore.\n\n%d keyring(s).\n
+Add new key	Add key dialog box		Add new key
+Volume	Data viewer dialog box		Volume
+Identifier	Keyring view		Identifier
+Create keyring…	Main menu		Create keyring…
+Haiku key store manager.	About box		Haiku key store manager.
+Certificate	Keyring view		Certificate
+Error: the name is in use	Add keyring dialog box		Error: the name is in use
+Type of key	Add key dialog box		Type of key
+Generic	Keyring view		Generic
+An entry must be selected first.	Keyring view		An entry must be selected first.
+Cancel	Add key dialog box		Cancel
+OK	Main window		OK
+Extra info	Keyring view		Extra info
+%s: %s.\nUsage: %s [option]\n[option] includes\n\t--help      This message\n\t--version   Shows app version\n	main		%s: %s.\nUsage: %s [option]\n[option] includes\n\t--help      This message\n\t--version   Shows app version\n
+Copy key secret	Keyring view		Copy key secret
+Select the purpose	Add key dialog box		Select the purpose
+Valid	Add keyring dialog box		Valid
+Check the README for more information.	About box		Check the README for more information.
+Keyring	Main menu		Keyring
+Copy signature	Keyring view		Copy signature
+Keystore	Main menu		Keystore
+Add keyring	Main window		Add keyring
+Network	Add key dialog box		Network
+Certificate key	Main menu		Certificate key
+Create keyring	Add keyring dialog box		Create keyring
+Authorized applications	Keyring view		Authorized applications
+Close	Data viewer dialog box		Close
+Keyring name	Add keyring dialog box		Keyring name
+Keyring statistics…	Main menu		Keyring statistics…
+Network	Keyring view		Network
+Remove key	Keyring view		Remove key
+The Key Storage API currently does not support creating keys of type \"Certificate\".	Main window		The Key Storage API currently does not support creating keys of type \"Certificate\".
+Purpose	Keyring view		Purpose
+Generic key	Main menu		Generic key
+Website:	About box		Website:
+Purpose	Add key dialog box		Purpose
+Type	Data viewer dialog box		Type
+Keys	Keyring view		Keys
+Error: the name \"Master\" cannot be used	Add keyring dialog box		Error: the name \"Master\" cannot be used
+OK	Keyring view		OK
+Create key	Main menu		Create key
+The Master keyring cannot be removed.	Main window		The Master keyring cannot be removed.
+Save	Add keyring dialog box		Save
+Do you want to remove this keyring and all of its keys? This action cannot be undone.	Main window		Do you want to remove this keyring and all of its keys? This action cannot be undone.
+Generic	Data viewer dialog box		Generic
+Purpose	Data viewer dialog box		Purpose
+Remove authorized application	Keyring view		Remove authorized application
+Keys	System name		Keys
+Save	Add key dialog box		Save
+Keyring	Add key dialog box		Keyring
+Identifier	Add key dialog box		Identifier
+Write the desired name for the new keyring below.\n\nIf a keyring with the written name already exists, this procedure\nwill fail. In addition, the name \"%inv%\" is reserved for the main \nsystem keyring and cannot be used.	Add keyring dialog box		Write the desired name for the new keyring below.\n\nIf a keyring with the written name already exists, this procedure\nwill fail. In addition, the name \"%inv%\" is reserved for the main \nsystem keyring and cannot be used.
+Password	Data viewer dialog box		Password
+About…	Main menu		About…
+Keystore statistics…	Main menu		Keystore statistics…
+Signature	Keyring view		Signature
+Keyring	Main window		Keyring
+Error: the name cannot be empty	Add keyring dialog box		Error: the name cannot be empty
+Cafeina (original author)	About box		Cafeina (original author)
+New key: error	Main window		New key: error
+Cancel	Keyring view		Cancel
+Keyring statistics…	Main window		Keyring statistics…
+Adding key to \"%desc%\" keyring.	Add key dialog box		Adding key to \"%desc%\" keyring.
+Network	Data viewer dialog box		Network
+(*) currently not implemented by the Key Storage API.	Data viewer dialog box		(*) currently not implemented by the Key Storage API.
+Keyring	Keyring view		Keyring
+Web	Data viewer dialog box		Web
+%s: version %s\n	main		%s: version %s\n
+Keyring information	Main window		Keyring information
+Type	Add key dialog box		Type
+Certificate	Data viewer dialog box		Certificate

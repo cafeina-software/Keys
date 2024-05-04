@@ -1,0 +1,23 @@
+# Keys 0.0.1
+
+This is an unstable initial version intended only for testing and previewing.
+It works if it is used to view and list data, but editing features are not
+completely stable, although behind the scenes the changes are always saved, that
+is not always replicated to the user interface. It also could contain
+a number of stability issues that could make it not useful for end users.
+
+* New features:
+
+- New application written from scratch, using the Haiku Key Storage API.
+- It can display the keyrings in the keystore, as well as keys in each keyrings,
+  and which applications were allowed to access each keyring. For each key,
+  it is possible to display the key metadata and its value.
+- UNSTABLE (ui level): it can create and delete keyrings.
+- UNSTABLE (ui level): it can create and delete keys under a keyring.
+- It can revoke (remove) an application authorization to a certain keyring.
+- It can restart the keystore_server if for some reason it was ended.
+
+* Miscellaneous:
+
+- Naming: the name "Keys" does what its name says, it is intended to
+  deal with things that have to do with the keystore of Haiku.

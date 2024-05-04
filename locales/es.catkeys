@@ -1,0 +1,117 @@
+1	English	application/x.vnd.cafeapp.keystoremgmt	4170188105
+Quit	Main menu		Salir
+Cancel	Add keyring dialog box		Cancelar
+Web	Keyring view		Web
+Remove keyring	Main menu		Quitar llavero
+Password key	Main menu		Clave de contraseña
+Owner (*)	Data viewer dialog box		Propietario (*)
+Do you want to remove the key \"%key%\" from this keyring?	Keyring view		¿Desea quitar la clave \"%key%\" de este llavero?
+Error	Add keyring dialog box		Error
+Remove keyring	Main window		Quitar llavero
+Key	Add key dialog box		Clave
+Remove	Keyring view		Quitar
+Cancel	Main window		Cancelar
+Restart keystore server	Main menu		Reiniciar servidor del depósito de claves
+Identifier	Data viewer dialog box		Identificador
+Key data	Data viewer dialog box		Datos de la clave
+Keys	Main menu		Claves
+Keyring: %s.\n\n%d key(s): %d generic-type, %d password-type.\n%d application(s).	Main window		Llavero: %s.\n\n%d clave(s): %d de tipo genéricas, %d de tipo contraseña.\n%d aplicacion(es).
+Remove keyring: not allowed	Main window		Quitar llavero: no permitido
+Creation time (*)	Data viewer dialog box		Fecha de creación (*)
+Keystore information	Main window		Información del depósito de claves
+Web	Add key dialog box		Web
+Generic key	Add key dialog box		Clave genérica
+Secondary identifier (optional)	Add key dialog box		Identificador secundario (opcional)
+Do you want to remove this application from this keyring?	Keyring view		¿Desea quitar esta aplicación de este llavero?
+Application	Keyring view		Aplicación
+Error	Keyring view		Error
+Volume	Add key dialog box		Volumen
+Generic	Add key dialog box		Genérico
+Keyring	Data viewer dialog box		Llavero
+Password key	Add key dialog box		Clave de contraseña
+Volume	Keyring view		Volumen
+Remove application	Keyring view		Quitar aplicación
+Key data\n(hex dump)	Data viewer dialog box		Datos de la clave\n(volcado hex.)
+The BeOS and Haiku community members.	About box		Los miembros de la comunidad de BeOS y Haiku.
+0.1\tInitial version.	About box		0.1\tVersión inicial.
+Sec. identifier	Data viewer dialog box		Identificador sec.
+Password	Keyring view		Contraseña
+Type	Keyring view		Tipo
+Data viewer	Data viewer dialog box		Visor de datos
+Remove	Main window		Quitar
+Certificate key	Add key dialog box		Clave de certificado
+View key data	Keyring view		Ver datos de la clave
+Add key	Keyring view		Añadir clave
+Keystore.\n\n%d keyring(s).\n	Main window		Depósito de claves.\n\n%d llavero(s).\n
+Add new key	Add key dialog box		Añadir clave nueva
+Volume	Data viewer dialog box		Volumen
+Identifier	Keyring view		Identificador
+Create keyring…	Main menu		Crear llavero…
+Haiku key store manager.	About box		Administrador del depósito de claves de Haiku.
+Certificate	Keyring view		Certificado
+Error: the name is in use	Add keyring dialog box		Error: el nombre está en uso
+Type of key	Add key dialog box		Tipo de clave
+Generic	Keyring view		Genérica
+An entry must be selected first.	Keyring view		Primero debe seleccionarse una entrada.
+Cancel	Add key dialog box		Cancelar
+OK	Main window		Aceptar
+Extra info	Keyring view		Información extra
+%s: %s.\nUsage: %s [option]\n[option] includes\n\t--help      This message\n\t--version   Shows app version\n	main		%s: %s.\nUso: %s [opción]\n[opción] incluye\n\t--help      Este mensaje\n\t--version   Muestra la versión de la aplicación\n
+Copy key secret	Keyring view		Copiar información secreta
+Select the purpose	Add key dialog box		Elija el propósito
+Valid	Add keyring dialog box		Válido
+Check the README for more information.	About box		Consulte el archivo README para más información.
+Keyring	Main menu		Llavero
+Copy signature	Keyring view		Copiar firma
+Keystore	Main menu		Depósito de claves
+Add keyring	Main window		Añadir llavero
+Network	Add key dialog box		Red
+Certificate key	Main menu		Clave de certificado
+Create keyring	Add keyring dialog box		Crear llavero
+Authorized applications	Keyring view		Aplicaciones autorizadas
+Close	Data viewer dialog box		Cerrar
+Keyring name	Add keyring dialog box		Nombre de llavero
+Keyring statistics…	Main menu		Estadísticas del llavero…
+Network	Keyring view		Red
+Remove key	Keyring view		Quitar clave
+The Key Storage API currently does not support creating keys of type \"Certificate\".	Main window		La API del depósito de claves actualmente no permite crear claves de tipo \"Certificado\".
+Purpose	Keyring view		Propósito
+Generic key	Main menu		Clave genérica
+Website:	About box		Sitio web:
+Purpose	Add key dialog box		Propósito
+Type	Data viewer dialog box		Tipo
+Keys	Keyring view		Claves
+Error: the name \"Master\" cannot be used	Add keyring dialog box		Error: el nombre \"Master\" no se puede usar
+OK	Keyring view		Aceptar
+Create key	Main menu		Crear clave
+The Master keyring cannot be removed.	Main window		El llavero Master no se puede quitar.
+Save	Add keyring dialog box		Guardar
+Do you want to remove this keyring and all of its keys? This action cannot be undone.	Main window		¿Desea quitar este llavero y todas sus claves? Esta acción es irreversible.
+Generic	Data viewer dialog box		Genérico
+Purpose	Data viewer dialog box		Propósito
+Remove authorized application	Keyring view		Quitar aplicación autorizada
+Keys	System name		Claves
+Save	Add key dialog box		Guardar
+Keyring	Add key dialog box		Llavero
+Identifier	Add key dialog box		Identificador
+Write the desired name for the new keyring below.\n\nIf a keyring with the written name already exists, this procedure\nwill fail. In addition, the name \"%inv%\" is reserved for the main \nsystem keyring and cannot be used.	Add keyring dialog box		Escriba el nombre deseado para el nuevo llavero.\n\nSi ya existe un llavero con el mismo nombre\nel proceso fallará. Además, el nombre \"%inv%\" está reservado como el \nllavero del sistema y no se puede usar.
+Password	Data viewer dialog box		Contraseña
+About…	Main menu		Acerca de…
+Keystore statistics…	Main menu		Estadísticas del depósito de claves…
+Signature	Keyring view		Firma
+Keyring	Main window		Llavero
+Error: the name cannot be empty	Add keyring dialog box		Error: el nombre no puede estar vacío
+Cafeina (original author)	About box		Cafeina (autor original)
+New key: error	Main window		Nueva clave: error
+Cancel	Keyring view		Cancelar
+Keyring statistics…	Main window		Estadísticas del llavero…
+Adding key to \"%desc%\" keyring.	Add key dialog box		Añadiendo clave al llavero \"%desc%\".
+Network	Data viewer dialog box		Red
+(*) currently not implemented by the Key Storage API.	Data viewer dialog box		(*) actualmente no implementado en la API del depósito de claves.
+Keyring	Keyring view		Llavero
+Web	Data viewer dialog box		Web
+%s: version %s\n	main		%s: versión %s\n
+Keyring information	Main window		Información del llavero
+Type	Add key dialog box		Tipo
+Certificate	Data viewer dialog box		Certificado
+Certificado
