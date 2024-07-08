@@ -45,6 +45,7 @@ KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
     keylistview = new BColumnListView("clv_keylist", 0, B_FANCY_BORDER);
     keylistview->SetSelectionMode(B_SINGLE_SELECTION_LIST);
     keylistview->SetSelectionMessage(new BMessage(KRV_KEYS_SEL));
+    keylistview->SetInvocationMessage(new BMessage(KRV_KEYS_INVOKE));
     keylistview->ResizeAllColumnsToPreferred();
     keylistview->AddColumn(new BStringColumn(B_TRANSLATE("Identifier"),
         200, 50, 250, 0, B_ALIGN_LEFT), 0);
@@ -183,6 +184,7 @@ void KeyringView::MessageReceived(BMessage* msg)
             }
             break;
         }
+        case KRV_KEYS_INVOKE:
         case KRV_KEYS_VWDATA:
         {
             if(keylistview->CurrentSelection()) {

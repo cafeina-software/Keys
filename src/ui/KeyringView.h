@@ -11,6 +11,7 @@
 #include "KeystoreImp.h"
 
 #define KRV_KEYS_SEL    'ksel'
+#define KRV_KEYS_INVOKE 'kivk'
 #define KRV_KEYS_CREATE 'knew'
 #define KRV_KEYS_REMOVE 'krem'
 #define KRV_KEYS_COPY   'kcpy'
