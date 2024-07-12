@@ -9,19 +9,20 @@
 #include <Key.h>
 #include "KeystoreImp.h"
 
-#define AKDLG_KEY_ID      'k1id'
-#define AKDLG_KEY_ID2     'k2id'
-#define AKDLG_KEY_DATA    'kdat'
-#define AKDLG_KEY_TYP_GEN 'tgen'
-#define AKDLG_KEY_TYP_PWD 'tpwd'
-#define AKDLG_KEY_TYP_CRT 'tcrt'
-#define AKDLG_KEY_PUR_GEN 'pgen'
-#define AKDLG_KEY_PUR_KRN 'pkrn'
-#define AKDLG_KEY_PUR_WEB 'pweb'
-#define AKDLG_KEY_PUR_NET 'pnet'
-#define AKDLG_KEY_PUR_VOL 'pvol'
-#define AKDLG_KEY_SAVE    'save'
-#define AKDLG_KEY_CANCEL  'cncl'
+#define AKDLG_KEY_ID        'k1id'
+#define AKDLG_KEY_ID2       'k2id'
+#define AKDLG_KEY_DATA      'kdat'
+#define AKDLG_KEY_TYP_GEN   'tgen'
+#define AKDLG_KEY_TYP_PWD   'tpwd'
+#define AKDLG_KEY_TYP_CRT   'tcrt'
+#define AKDLG_KEY_PUR_GEN   'pgen'
+#define AKDLG_KEY_PUR_KRN   'pkrn'
+#define AKDLG_KEY_PUR_WEB   'pweb'
+#define AKDLG_KEY_PUR_NET   'pnet'
+#define AKDLG_KEY_PUR_VOL   'pvol'
+#define AKDLG_KEY_MODIFIED  'modi'
+#define AKDLG_KEY_SAVE      'save'
+#define AKDLG_KEY_CANCEL    'cncl'
 
 class AddKeyDialogBox : public BWindow
 {
@@ -31,7 +32,7 @@ public:
     virtual void  MessageReceived(BMessage* msg);
     virtual bool  QuitRequested();
 private:
-    status_t      _IsValid(KeystoreImp* _ks, BString info);
+    status_t      _IsValid(BString info);
     void          _SaveKey();
     bool          _IsAbleToSave();
 private:

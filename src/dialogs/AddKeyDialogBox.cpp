@@ -39,16 +39,19 @@ AddKeyDialogBox::AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
     mfType->Menu()->FindItem(AKDLG_KEY_TYP_CRT)->SetEnabled(false);
     if(currentDesiredType == B_KEY_TYPE_PASSWORD)
         mfType->Menu()->FindItem(AKDLG_KEY_TYP_PWD)->SetMarked(true);
-    else
+    else if(currentDesiredType == B_KEY_TYPE_GENERIC)
         mfType->Menu()->FindItem(AKDLG_KEY_TYP_GEN)->SetMarked(true);
 
     tcIdentifier = new BTextControl("tc_id", B_TRANSLATE("Identifier"), currentId,
         new BMessage(AKDLG_KEY_ID));
+    tcIdentifier->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
     tcSecIdentifier = new BTextControl("tc_id2",
         B_TRANSLATE("Secondary identifier (optional)"),
         currentId2, new BMessage(AKDLG_KEY_ID2));
+    tcSecIdentifier->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
     tcData = new BTextControl("tc_key", B_TRANSLATE("Key"), currentData,
         new BMessage(AKDLG_KEY_DATA));
+    tcData->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
     tcData->TextView()->HideTyping(true);
 
     pumPurpose = new BPopUpMenu(B_TRANSLATE("Select the purpose"), B_ITEMS_IN_COLUMN);
@@ -96,23 +99,19 @@ void AddKeyDialogBox::MessageReceived(BMessage* msg)
     switch (msg->what)
     {
         case AKDLG_KEY_ID:
-            currentId = tcIdentifier->Text();
-            if(_IsValid(ks, tcIdentifier->Text()))
-                tcIdentifier->MarkAsInvalid(true);
-            else
-                tcIdentifier->MarkAsInvalid(false);
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            tcIdentifier->MarkAsInvalid(_IsValid(BString(tcIdentifier->Text())) != B_OK);
             break;
         case AKDLG_KEY_ID2:
-            currentId2 = tcSecIdentifier->Text();
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            // tcSecIdentifier->MarkAsInvalid(false);
             break;
         case AKDLG_KEY_DATA:
+            tcData->MarkAsInvalid(_IsValid(BString(tcData->Text())) != B_OK);
+            break;
+        case AKDLG_KEY_MODIFIED:
+            currentId = tcIdentifier->Text();
+            currentId2 = tcSecIdentifier->Text();
             currentData = tcData->Text();
-            if(_IsValid(ks, tcData->Text()))
-                tcData->MarkAsInvalid(true);
-            else
-                tcData->MarkAsInvalid(false);
+
             saveKeyButton->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_TYP_GEN:
@@ -166,7 +165,7 @@ bool AddKeyDialogBox::QuitRequested()
     return true;
 }
 
-status_t AddKeyDialogBox::_IsValid(KeystoreImp* _ks, BString info)
+status_t AddKeyDialogBox::_IsValid(BString info)
 {
     if(info.IsEmpty())
         return B_BAD_VALUE;
@@ -176,8 +175,8 @@ status_t AddKeyDialogBox::_IsValid(KeystoreImp* _ks, BString info)
 
 bool AddKeyDialogBox::_IsAbleToSave()
 {
-    return _IsValid(ks, currentId)   == B_OK           &&
-           _IsValid(ks, currentData) == B_OK           &&
+    return _IsValid(currentId)       == B_OK           &&
+           _IsValid(currentData)     == B_OK           &&
            currentDesiredType        >  B_KEY_TYPE_ANY &&
            currentPurpose            >  B_KEY_PURPOSE_ANY;
 }

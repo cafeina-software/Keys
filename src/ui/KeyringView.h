@@ -17,8 +17,10 @@
 #define KRV_KEYS_COPY   'kcpy'
 #define KRV_KEYS_VWDATA 'kvwd'
 #define KRV_APPS_SEL    'asel'
+#define KRV_APPS_INVOKE 'aivk'
 #define KRV_APPS_REMOVE 'arem'
 #define KRV_APPS_COPY   'acpy'
+#define KRV_APPS_VWDATA 'avwd'
 
 class KeyringView : public BView
 {
@@ -35,6 +37,7 @@ private:
     void          _CopyData(KeystoreImp* ks, BColumnListView* owner, const uint8* data);
     void          _RemoveKey(KeystoreImp* ks, const char* _id);
     void          _RemoveApp(KeystoreImp* ks, const char* _app);
+    int           _MaxLength(BColumnListView* view, int fieldid, int defValue, KeystoreImp* ks, bool iskeytype);
 private:
     BTabView        *tabView;
     BColumnListView *keylistview,

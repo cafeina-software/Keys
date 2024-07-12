@@ -27,6 +27,7 @@ AddKeyringDialogBox::AddKeyringDialogBox(BRect frame, KeystoreImp& _ks)
 
     tcKeyringName = new BTextControl("tc_krname", B_TRANSLATE("Keyring name"),
         currentKeyringName, new BMessage(AKRDLG_NAME_CHANGED));
+    tcKeyringName->SetModificationMessage(new BMessage(AKRDLG_NAME_CHANGED));
 
     errorfont.SetFace(B_BOLD_FACE);
 

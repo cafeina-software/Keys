@@ -209,6 +209,8 @@ void KeysWindow::MessageReceived(BMessage* msg)
 
 void KeysWindow::SetUIStatus(ui_status status)
 {
+    LockLooper();
+
     switch(status)
     {
         case S_UI_NO_KEYRING_IN_FOCUS:
@@ -226,6 +228,8 @@ void KeysWindow::SetUIStatus(ui_status status)
         default:
             break;
     }
+
+    UnlockLooper();
 }
 
 ui_status KeysWindow::GetUIStatus()
