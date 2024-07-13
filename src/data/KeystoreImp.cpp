@@ -118,13 +118,39 @@ void KeyringImp::RemoveKeyFromList(const char* _keyid)
 
 status_t KeyringImp::DeleteKey(const char* _keyid)
 {
+    status_t status = B_ERROR;
     BKeyStore keystore;
-    BKey key;
-    status_t status = keystore.GetKey(Identifier(), B_KEY_TYPE_ANY, _keyid, key);
 
-    if(status == B_OK) {
-        RemoveKeyFromList(_keyid);
-        keystore.RemoveKey(Identifier(), key);
+    if(KeyByIdentifier(_keyid) == NULL)
+        return status;
+
+    switch(KeyByIdentifier(_keyid)->Type())
+    {
+        case B_KEY_TYPE_GENERIC:
+        {
+            BKey key;
+            status = keystore.GetKey(Identifier(), B_KEY_TYPE_GENERIC,
+                _keyid, key);
+            if(status == B_OK) {
+                RemoveKeyFromList(_keyid);
+                keystore.RemoveKey(Identifier(), key);
+            }
+            break;
+        }
+        case B_KEY_TYPE_PASSWORD:
+        {
+            BPasswordKey key;
+            status = keystore.GetKey(Identifier(), B_KEY_TYPE_PASSWORD,
+                _keyid, key);
+            if(status == B_OK) {
+                RemoveKeyFromList(_keyid);
+                keystore.RemoveKey(Identifier(), key);
+            }
+            break;
+        }
+        case B_KEY_TYPE_CERTIFICATE:
+        default:
+            break;
     }
     return status;
 }

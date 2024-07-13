@@ -332,12 +332,10 @@ void KeyringView::_InitAppData(KeystoreImp* ks)
         row = new BRow();
 
         const char* signature = ks->KeyringByName(keyringname)->ApplicationAt(i)->Identifier();
-        BRoster roster;
-        app_info info;
-        status_t status;
         const char* name;
-        if((status = roster.GetAppInfo(signature, &info)) == B_OK)
-            name = info.ref.name;
+        entry_ref ref;
+        if(be_roster->FindApp(signature, &ref) == B_OK)
+            name = ref.name;
         else
             name = "";
 
@@ -462,7 +460,7 @@ int KeyringView::_MaxLength(BColumnListView* view, int fieldid, int defValue, Ke
                     break;
                 }
             }
-            fprintf(stderr, "length %d, maxval %d\n", length, maxValue);
+
             if(maxValue < length)
                 maxValue = length;
         }

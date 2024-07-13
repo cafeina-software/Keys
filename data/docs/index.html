@@ -77,6 +77,41 @@ footer {
     margin-left: 1rem;
     margin-right: 1rem;
 }
+img.showcase {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+.warningbox {
+    border-style: solid;
+    border-width: thin thin thin thick;
+    border-color: DarkOrange;
+    padding: 1em;
+    margin: 0.5rem 10%;
+    background-color: Bisque;
+}
+.warningbox-caption {
+    font-weight: bold;
+    margin-bottom: 0.2em;
+}
+.warningbox-text {
+    text-align: justify;
+}
+.errorbox {
+    border-style: solid;
+    border-width: thin thin thin thick;
+    border-color: FireBrick;
+    padding: 1em;
+    margin: 0.5rem 10%;
+    background-color: MistyRose;
+}
+.errorbox-caption {
+    font-weight: bold;
+    margin-bottom: 0.2em;
+}
+.errorbox-text {
+    text-align: justify;
+}
   </style>
  </head>
  <body>
@@ -99,11 +134,19 @@ footer {
   <var>Keystore</var> &gt; <var>Create keyring…</var> (you can also quickly do
   this by clicking the <var>+</var> button at the bottom of the keyring
   list view). This will open a dialog box:</p>
+  <img class="showcase" src="img/en/add_new_keyring.png" width="521" height="305"  />
   <p>The dialog box has only the option to write the name of the keyring to be
   created and two buttons to confirm or to cancel the creation. To create a
   keyring, write the desired name and then click Save. If you changed your
   mind, just click Cancel, or if you have already created the keyring, you can
   remove it (see below).</p>
+  <div class="warningbox">
+  <div class="warningbox-caption">Naming tips</div>
+  <div class="warningbox-text">Any name is valid as long as it is not the same
+  as <var>Master</var> (this name is already taken by the Master keyring).
+  The name must not be empty, and can contain alphanumeric characters or
+  symbols such as dashes or underscores.</div>
+  </div>
   <h3>Deletion of keyrings</h3>
   <p>To delete an existing keyring in the system keystore, first select the
   target keyring in the keyring list view and then go to the menu
@@ -113,6 +156,12 @@ footer {
   the operation or to cancel it. If you proceed with the removal, the keyring
   will be permanently deleted as well as the keys associated with it, and this
   is without any chance of recovery, so be very careful of what you delete.</p>
+  <div class="errorbox">
+  <div class="errorbox-caption">You cannot delete the <var>Master</var> keyring!</div>
+  <div class="errorbox-text">The <var>Master</var> keyring is created by the
+  system and it cannot be deleted. If you try to delete it, the Keystore API
+  will not allow you to do it.</div>
+  </div>
   <h3>Restart <samp>keystore_server</samp></h3>
   <p>In the case where the <samp>keystore_server</samp> is not running, you can
   make the server to restart by selecting the menu <var>Keys</var> &gt;
@@ -123,10 +172,12 @@ footer {
   <var>Keystore</var> &gt; <var>Keystore statistics…</var>. This option
   currently offers the number of keyrings inside the keystore and nothing
   else.</p>
+  <img class="showcase" src="img/en/keystore_stats.png" width="452" height="161"  />
   <h2 id="keyring">Keyring, keys and application access lists</h2>
   <p>Here you can operate with options related to a specific keyring. To
   select a keyring, in the list view at the left side, choose the entry with
   the target keyring's name, and then perform the desired operation.</p>
+  <img class="showcase" src="img/en/Keys_window.png" width="880" height="558.8248" />
   <p>The right side panel has a tabbed view, with the first tab containing the
   list of keys in the keyring, and the second tab the list of applications that
   were allowed to access this keyring.</p>
@@ -138,11 +189,13 @@ footer {
   <var>Create key</var>, and in the submenu select the type of key:
   <var>Generic key</var> or <var>Password key</var> (you can also do this by
   clicking the button of Add key in the sidebar of the Keys view).</p>
+  <img class="showcase" src="img/en/add_new_key.png" width="460" height="378.37" />
   <p>The Add new key dialog box will appear. There, you can select the type of
   key (generic or password), the identifier, an optional secondary identifier,
   the key data (i.e. the password itself) and the purpose (generic, keyring,
   web, network or volume). For the meaning of any of these concepts, please
-  read the Haiku documentation. To create a key, it has to have an identifier,
+  read the <a href="https://www.haiku-os.org/docs/api/Key_8h.html">Haiku API
+  documentation</a>. To create a key, it has to have an identifier,
   a key data (i.e. a password), a type and a purpose. Once the required fields
   are filled, click Save to create the key, or Cancel to abort the
   operation.</p>
@@ -150,6 +203,7 @@ footer {
   <p>To delete a key, select the target key and click the button of Remove key
   in the sidebar of the Keys view. It will ask for confirmation once. To
   proceed with the removal choose Remove, otherwise choose Cancel.</p>
+  <img class="showcase" src="img/en/remove_key.png" width="452" height="115" />
   <h4>Key data viewer</h4>
   <p>To read all the data associated with a key, either double click the key's
   entry or select it and press the View key data button. It will open the
@@ -157,23 +211,27 @@ footer {
   identifier (if it was set), type, purpose, creation time (currently not
   supported by the API), owner (currently not supported by the API), and the
   key secret data.</p>
+  <img class="showcase" src="img/en/data_viewer.png" width="440" height="603.88" />
   <p>You can quickly copy the key's secret data if you select the target
   key and click the sidebar button Copy key secret.</p>
+  <img class="showcase" src="img/en/key_sidebar_copy.png" width="264" height="225" />
   <h3>Whitelisted applications</h3>
   <p>With each keyring, alongside the list of keys there is a list of
   applications that were granted access to the keyring. This is the second
   tab of the right view.</p>
   <p>To revoke an application's access, select the entry in the list view
   and click the button Remove application.</p>
+  <img class="showcase" src="img/en/app_sidebar_remove.png" width="264" height="225" />
   <p>To copy the target application's signature, select it and click the button
   Copy signature.</p>
-  <p>You can double click the target application to open the Tracker's
+  <p>You can double click the target application list item to open the Tracker's
   information dialog box about the application's binary.</p>
   <h3>Keyring statistics</h3>
   <p>The option <var>Keyring</var> &gt; <var>Keyring statistics…</var> shows
   the statistics of the currently selected keyring. It currently only offers
   the number of keys (and how many of each type), and the number of applications
   with access.</p>
+  <img class="showcase" src="img/en/keyring_stats.png" width="452" height="161" />
   <hr />
   <footer id="end">Keys README</footer>
  </body>
