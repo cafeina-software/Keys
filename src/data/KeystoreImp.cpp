@@ -3,80 +3,153 @@
  * All rights reserved. Distributed under the terms of the MIT license.
  */
 #include <KeyStore.h>
+#include <Roster.h>
 #include <cstdio>
 #include "KeystoreImp.h"
 
-// #pragma mark -
+// #pragma mark - KeyImp
 
-KeyImp::KeyImp(KeyringImp* _owner, BKeyPurpose _purpose, BKeyType t,
-    const char* _id, const char* _secid)
-: owner(_owner),
-  purpose(_purpose),
-  type(t)
+KeyImp::KeyImp(KeyringImp* parent)
+: fParent(parent)
 {
-    identifier = _id;
-    if(_secid != NULL)
-        secidentifier = _secid;
+    SetTo(B_KEY_PURPOSE_GENERIC, B_KEY_TYPE_GENERIC, "", nullptr, 0, "");
+}
+
+KeyImp::KeyImp(KeyringImp* parent, BKey key)
+: fParent(parent)
+{
+    SetTo(key.Purpose(), key.Type(), key.Identifier(),
+        key.SecondaryIdentifier(), key.CreationTime(), key.Owner());
+}
+
+KeyImp::KeyImp(KeyringImp* parent, BKeyPurpose p, BKeyType t,
+    const char* id, const char* secid, bigtime_t dc, const char* owner)
+: fParent(parent)
+{
+    SetTo(p, t, id, secid, dc, owner);
+}
+
+void KeyImp::SetTo(BKeyPurpose p, BKeyType t,
+    const char* id, const char* secid, bigtime_t dc, const char* owner)
+{
+    fPurpose = p;
+    fType = t;
+    fIdentifier.SetTo(id);
+    secid ? fSecIdentifier.SetTo(secid) : fSecIdentifier.SetTo("");
+    fCreated = dc;
+    fOwner.SetTo(owner);
+}
+
+KeyringImp* KeyImp::Parent()
+{
+    return fParent;
 }
 
 const char* KeyImp::Identifier()
 {
-    return identifier.String();
+    return fIdentifier.String();
 }
 
 const char* KeyImp::SecondaryIdentifier()
 {
-    return secidentifier.String();
+    return fSecIdentifier.String();
 }
 
 BKeyType KeyImp::Type()
 {
-    return type;
+    return fType;
 }
 
 BKeyPurpose KeyImp::Purpose()
 {
-    return purpose;
+    return fPurpose;
 }
 
-BKey KeyImp::GetBKey()
+bigtime_t KeyImp::Created()
 {
-	BKeyStore keystore;
+    return fCreated;
+}
+
+const char* KeyImp::Owner()
+{
+    return fOwner.String();
+}
+
+void KeyImp::Data(const void* ptr, size_t* len)
+{
     BKey key;
-
-	keystore.GetKey(owner->Identifier(), B_KEY_TYPE_ANY, Identifier(), key);
-
-    return key;
+    BKeyStore().GetKey(fParent->Identifier(), Type(), Identifier(), key);
+    ptr = reinterpret_cast<const void*>(key.Data());
+    *len = key.DataLength();
 }
 
 void KeyImp::PrintToStream()
 {
-    printf("\t\tKey: %s. type(%d), purpose(%d), data(%s)\n",
-        Identifier(), Type(), Purpose(), GetBKey().Data());
+    printf("\t\tKey: %s. parent(%s), type(%d), purpose(%d)\n",
+        Identifier(), Parent()->Identifier(), Type(), Purpose());
 }
 
-// #pragma mark -
-
-ApplicationAccessImp::ApplicationAccessImp(const char* _signature)
+status_t KeyImp::Export(BMessage* archive)
 {
-    signature = _signature;
+    switch(Type())
+    {
+        case B_KEY_TYPE_GENERIC:
+        {
+            BKey key;
+            if(BKeyStore().GetKey(fParent->Identifier(), B_KEY_TYPE_GENERIC, Identifier(), key) != B_OK)
+                return B_ERROR;
+            return key.Flatten(*archive);
+        }
+        case B_KEY_TYPE_PASSWORD:
+        {
+            BPasswordKey pwdkey;
+            if(BKeyStore().GetKey(fParent->Identifier(), B_KEY_TYPE_PASSWORD, Identifier(), pwdkey) != B_OK)
+                return B_ERROR;
+            return pwdkey.Flatten(*archive);
+        }
+        case B_KEY_TYPE_CERTIFICATE:
+        case B_KEY_TYPE_ANY:
+        default:
+            return B_NOT_SUPPORTED;
+    }
+}
+
+// #pragma mark - AppImp
+
+ApplicationAccessImp::ApplicationAccessImp(KeyringImp* parent, const char* signature)
+: fParent(parent)
+{
+    fSignature.SetTo(signature);
+}
+
+KeyringImp* ApplicationAccessImp::Parent()
+{
+    return fParent;
 }
 
 const char* ApplicationAccessImp::Identifier()
 {
-    return signature.String();
+    return fSignature.String();
+}
+
+status_t ApplicationAccessImp::GetRef(entry_ref* ref)
+{
+    return be_roster->FindApp(Identifier(), ref);
 }
 
 void ApplicationAccessImp::PrintToStream()
 {
-    printf("\t\tApplication: %s\n", Identifier());
+    printf("\t\tApplication: %s, parent(%s)\n", Identifier(), Parent()->Identifier());
 }
 
-// #pragma mark -
+// #pragma mark - KeyringImp
 
-KeyringImp::KeyringImp(const char* _name)
+KeyringImp::KeyringImp(KeystoreImp* parent, const char* name)
+: fParent(parent),
+  fHasUnlockKey(false),
+  fIsUnlocked(BKeyStore().IsKeyringUnlocked(name))
 {
-    name = _name;
+    fName.SetTo(name);
 }
 
 KeyringImp::~KeyringImp()
@@ -84,162 +157,230 @@ KeyringImp::~KeyringImp()
     Reset();
 }
 
+KeystoreImp* KeyringImp::Parent()
+{
+    return fParent;
+}
+
 const char* KeyringImp::Identifier()
 {
-    return name.String();
+    return fName.String();
 }
 
-void KeyringImp::CreateKey(BKeyPurpose _purpose, const char* _id, const char* _secid,
-    const uint8* _data, size_t _length)
+bool KeyringImp::IsUnlocked()
 {
-    BKeyStore keystore;
-    status_t status = keystore.AddKey(Identifier(), BKey(_purpose, _id, _secid,
-        _data, _length));
-
-    BKey key;
-    keystore.GetKey(Identifier(), B_KEY_TYPE_ANY, _id, key);
-
-    if(status == B_OK)
-        AddKeyToList(_purpose, key.Type(), _id, _secid);
+    return BKeyStore().IsKeyringUnlocked(fName.String());
 }
 
-void KeyringImp::AddKeyToList(BKeyPurpose _purpose, BKeyType _t, const char* _id, const char* _secid)
+status_t KeyringImp::Lock()
 {
-    keylist.AddItem(new KeyImp(this, _purpose, _t, _id, _secid));
+    return BKeyStore().LockKeyring(fName.String());
 }
 
-void KeyringImp::RemoveKeyFromList(const char* _keyid)
+status_t KeyringImp::Unlock()
 {
-    KeyImp* todelete = FindInList(keylist, _keyid);
-
-    if(todelete)
-        keylist.RemoveItem(todelete);
+    return B_NOT_SUPPORTED;
 }
 
-status_t KeyringImp::DeleteKey(const char* _keyid)
+status_t KeyringImp::SetUnlockKey(BMessage* data)
 {
-    status_t status = B_ERROR;
-    BKeyStore keystore;
-
-    if(KeyByIdentifier(_keyid) == NULL)
+    status_t status = B_OK;
+    BPasswordKey key;
+    if((status = key.Unflatten(*data)) != B_OK)
         return status;
 
-    switch(KeyByIdentifier(_keyid)->Type())
-    {
+    if((status = BKeyStore().SetUnlockKey(fName.String(), key)) == B_OK)
+        fHasUnlockKey = true;
+
+    return status;
+}
+
+status_t KeyringImp::RemoveUnlockKey()
+{
+    status_t status = B_OK;
+
+    if((status = BKeyStore().RemoveUnlockKey(fName.String())) == B_OK)
+        fHasUnlockKey = false;
+
+    return status;
+}
+
+status_t KeyringImp::AddKey(BKeyPurpose p, BKeyType t, const char* id,
+    const char* secid, const uint8* data, size_t length, bool createInDb)
+{
+    status_t status = B_OK;
+
+    if(createInDb) {
+        switch(t) {
+            case B_KEY_TYPE_GENERIC:
+                status = BKeyStore().AddKey(Identifier(),
+                    BKey(p, id, secid, data, length));
+                break;
+            case B_KEY_TYPE_PASSWORD:
+            {
+                const char* password = reinterpret_cast<const char*>(data);
+                status = BKeyStore().AddKey(Identifier(),
+                    BPasswordKey(password, p, id, secid));
+                break;
+            }
+            default:
+                return B_NOT_SUPPORTED;
+        }
+    }
+
+    if(status == B_OK)
+        status = fKeyList.AddItem(new KeyImp(this, p, t, id, secid));
+
+    return status;
+}
+
+status_t KeyringImp::ImportKey(BMessage* archive)
+{
+    BKeyType type;
+    if(archive->FindUInt32("type", (uint32*)&type) != B_OK)
+        return B_BAD_DATA; // not even a flattened key
+
+    status_t status = B_OK;
+    switch(type) {
         case B_KEY_TYPE_GENERIC:
         {
             BKey key;
-            status = keystore.GetKey(Identifier(), B_KEY_TYPE_GENERIC,
-                _keyid, key);
-            if(status == B_OK) {
-                RemoveKeyFromList(_keyid);
-                keystore.RemoveKey(Identifier(), key);
-            }
-            break;
+            if((status = key.Unflatten(*archive)) != B_OK)
+                return status;
+            if((status = BKeyStore().AddKey(Identifier(), key)) != B_OK)
+                return status;
+            AddKey(key.Purpose(), key.Type(), key.Identifier(), key.SecondaryIdentifier());
+            return B_OK;
         }
         case B_KEY_TYPE_PASSWORD:
         {
             BPasswordKey key;
-            status = keystore.GetKey(Identifier(), B_KEY_TYPE_PASSWORD,
-                _keyid, key);
-            if(status == B_OK) {
-                RemoveKeyFromList(_keyid);
-                keystore.RemoveKey(Identifier(), key);
-            }
-            break;
+            if((status = key.Unflatten(*archive)) != B_OK)
+                return status;
+            if((status = BKeyStore().AddKey(Identifier(), key)) != B_OK)
+                return status;
+            AddKey(key.Purpose(), key.Type(), key.Identifier(), key.SecondaryIdentifier());
+            return B_OK;
         }
         case B_KEY_TYPE_CERTIFICATE:
+        case B_KEY_TYPE_ANY:
         default:
-            break;
+            return B_NOT_SUPPORTED;
     }
+}
+
+status_t KeyringImp::RemoveKey(const char* id, bool deleteInDb)
+{
+    status_t status = B_OK;
+
+    KeyImp* keyentry = FindInList(fKeyList, id);
+    if(!keyentry)
+        return B_ENTRY_NOT_FOUND;
+
+    if(deleteInDb) {
+        switch(keyentry->Type()) {
+            case B_KEY_TYPE_GENERIC: {
+                BKey key;
+                if((status = BKeyStore().GetKey(Identifier(), keyentry->Type(),
+                keyentry->Identifier(), key)) != B_OK)
+                    return status;
+                status = BKeyStore().RemoveKey(Identifier(), key);
+                break;
+            }
+            case B_KEY_TYPE_PASSWORD: {
+                BPasswordKey key;
+                if((status = BKeyStore().GetKey(Identifier(), keyentry->Type(),
+                keyentry->Identifier(), key)) != B_OK)
+                    return status;
+                status = BKeyStore().RemoveKey(Identifier(), key);
+                break;
+            }
+            default:
+                return B_NOT_SUPPORTED;
+        }
+    }
+
+    if(status == B_OK)
+        fKeyList.RemoveItem(keyentry);
+
     return status;
-}
-
-void KeyringImp::AddApplicationToList(const char* _appname)
-{
-    applicationlist.AddItem(new ApplicationAccessImp(_appname));
-}
-
-// uint32 KeyringImp::RetrieveApplications()
-// {
-    // BKeyStore keystore;
-    // uint32 cookie = 0;
-    // BString signature;
-    // while(keystore.GetNextApplication(Identifier(), cookie, signature) == B_OK) {
-        // applicationlist.AddItem(new ApplicationAccessImp(signature));
-    // }
-    // return cookie;
-// }
-
-status_t KeyringImp::RemoveApplication(const char* _signature)
-{
-    status_t status = B_ERROR;
-    BKeyStore keystore;
-    ApplicationAccessImp* todelete = FindInList(applicationlist, _signature);
-
-    if(todelete)
-        if((status = keystore.RemoveApplication(Identifier(), _signature)) == B_OK)
-            applicationlist.RemoveItem(todelete);
-
-    return status;
-}
-
-KeyImp* KeyringImp::KeyByIdentifier(const char* _id)
-{
-    return FindInList(keylist, _id);
 }
 
 KeyImp* KeyringImp::KeyAt(int32 index)
 {
-    return keylist.ItemAt(index);
+    return fKeyList.ItemAt(index);
+}
+
+KeyImp* KeyringImp::KeyByIdentifier(const char* id)
+{
+    return FindInList(fKeyList, id);
 }
 
 int32 KeyringImp::KeyCount(BKeyType type, BKeyPurpose purpose)
 {
     int count = 0;
-    for(int i = 0; i < keylist.CountItems(); i++) {
-        if((type == B_KEY_TYPE_ANY || keylist.ItemAt(i)->Type() == type) &&
-        (purpose == B_KEY_PURPOSE_ANY || keylist.ItemAt(i)->Purpose() == purpose))
+    for(int i = 0; i < fKeyList.CountItems(); i++) {
+        if((type == B_KEY_TYPE_ANY || fKeyList.ItemAt(i)->Type() == type) &&
+        (purpose == B_KEY_PURPOSE_ANY || fKeyList.ItemAt(i)->Purpose() == purpose))
             count++;
     }
     return count;
 }
 
-ApplicationAccessImp* KeyringImp::ApplicationBySignature(const char* _signature)
+void KeyringImp::AddApplicationToList(const char* signature)
 {
-    return FindInList(applicationlist, _signature);
+    fAppList.AddItem(new ApplicationAccessImp(this, signature));
+}
+
+status_t KeyringImp::RemoveApplication(const char* signature, bool deleteInDb)
+{
+    status_t status = B_OK;
+
+    if(deleteInDb)
+        status = BKeyStore().RemoveApplication(Identifier(), signature);
+
+    ApplicationAccessImp* app = FindInList(fAppList, signature);
+    if(status == B_OK && app)
+        status = fAppList.RemoveItem(app);
+
+    return status;
 }
 
 ApplicationAccessImp* KeyringImp::ApplicationAt(int32 index)
 {
-    return applicationlist.ItemAt(index);
+    return fAppList.ItemAt(index);
+}
+
+ApplicationAccessImp* KeyringImp::ApplicationBySignature(const char* signature)
+{
+    return FindInList(fAppList, signature);
 }
 
 int32 KeyringImp::ApplicationCount()
 {
-    return applicationlist.CountItems();
+    return fAppList.CountItems();
 }
 
 void KeyringImp::PrintToStream()
 {
     printf("\tKeyring: %s. %d keys. %d applications.\n", Identifier(),
-        keylist.CountItems(), applicationlist.CountItems());
-    for(int i = 0; i < keylist.CountItems(); i++)
-        keylist.ItemAt(i)->PrintToStream();
-    for(int i = 0; i < applicationlist.CountItems(); i++)
-        applicationlist.ItemAt(i)->PrintToStream();
+        fKeyList.CountItems(), fAppList.CountItems());
+    for(int i = 0; i < fKeyList.CountItems(); i++)
+        fKeyList.ItemAt(i)->PrintToStream();
+    for(int i = 0; i < fAppList.CountItems(); i++)
+        fAppList.ItemAt(i)->PrintToStream();
 }
 
 void KeyringImp::Reset()
 {
     // Reset the data structure without touching the actual data on disk
-    for(int i = 0; i < keylist.CountItems(); i++)
-        keylist.RemoveItem(keylist.ItemAt(i));
-    for(int i = 0; i < applicationlist.CountItems(); i++)
-        applicationlist.RemoveItem(applicationlist.ItemAt(i));
+    for(int i = 0; i < fKeyList.CountItems(); i++)
+        fKeyList.RemoveItem(fKeyList.ItemAt(i));
+    for(int i = 0; i < fAppList.CountItems(); i++)
+        fAppList.RemoveItem(fAppList.ItemAt(i));
 }
 
-// #pragma mark -
+// #pragma mark - KeystoreImp
 
 KeystoreImp::KeystoreImp()
 {
@@ -250,61 +391,67 @@ KeystoreImp::~KeystoreImp()
     Reset();
 }
 
-status_t KeystoreImp::CreateKeyring(const char* _name)
+status_t KeystoreImp::AddKeyring(const char* name, bool createInDb)
 {
-    BKeyStore keystore;
-    status_t status = keystore.AddKeyring(_name);
+    status_t status = B_OK;
+
+    if(createInDb)
+        status = BKeyStore().AddKeyring(name);
+
     if(status == B_OK)
-        AddKeyring(_name);
+        status = fKeyringList.AddItem(new KeyringImp(this, name));
 
     return status;
 }
 
-void KeystoreImp::AddKeyring(const char* _name)
+status_t KeystoreImp::RemoveKeyring(const char* name, bool deleteInDb)
 {
-    keyringlist.AddItem(new KeyringImp(_name));
-}
+    status_t status = B_OK;
 
-status_t KeystoreImp::RemoveKeyring(const char* _name)
-{
-    status_t status;
-    KeyringImp* todelete = FindInList(keyringlist, _name);
-
-    if(todelete) {
-        BKeyStore keystore;
-        status = keystore.RemoveKeyring(todelete->Identifier());
-        keyringlist.RemoveItem(todelete);
+    KeyringImp* keyring = FindInList(fKeyringList, name);
+    if(keyring) {
+        bool removed = fKeyringList.RemoveItem(keyring);
+        if(removed && deleteInDb) {
+            status = BKeyStore().RemoveKeyring(name);
+        }
     }
-    return status;
-}
+    else
+        return B_ENTRY_NOT_FOUND;
 
-KeyringImp* KeystoreImp::KeyringByName(const char* _name)
-{
-    return FindInList(keyringlist, _name);
+    return status;
 }
 
 KeyringImp* KeystoreImp::KeyringAt(int32 index)
 {
-    return keyringlist.ItemAt(index);
+    return fKeyringList.ItemAt(index);
+}
+
+KeyringImp* KeystoreImp::KeyringByName(const char* name)
+{
+    return FindInList(fKeyringList, name);
 }
 
 int32 KeystoreImp::KeyringCount()
 {
-    return keyringlist.CountItems();
+    return fKeyringList.CountItems();
 }
 
 void KeystoreImp::PrintToStream()
 {
-    printf("Keystore. %d keyrings.\n", keyringlist.CountItems());
+    printf("Keystore. %d keyrings.\n", fKeyringList.CountItems());
 
-    for(int i = 0; i < keyringlist.CountItems(); i++)
-        keyringlist.ItemAt(i)->PrintToStream();
+    for(int i = 0; i < fKeyringList.CountItems(); i++)
+        fKeyringList.ItemAt(i)->PrintToStream();
+}
+
+bool KeystoreImp::IsEmpty()
+{
+    return fKeyringList.IsEmpty();
 }
 
 void KeystoreImp::Reset()
 {
     // Reset the data structure without touching the actual data on disk
-    for(int i = 0; i < keyringlist.CountItems(); i++)
-        keyringlist.RemoveItem(keyringlist.ItemAt(i));
+    for(int i = 0; i < fKeyringList.CountItems(); i++)
+        fKeyringList.RemoveItem(fKeyringList.ItemAt(i));
 }
-

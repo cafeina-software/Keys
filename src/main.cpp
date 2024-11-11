@@ -4,7 +4,7 @@
  */
 #include <Catalog.h>
 #include <cstdio>
-#include "KeysApplication.h"
+#include "ui/KeysApplication.h"
 #include "KeysDefs.h"
 
 int option(const char* op);

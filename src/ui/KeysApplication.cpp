@@ -4,13 +4,15 @@
  */
 #include <StorageKit.h>
 #include <Catalog.h>
+#include <DateTime.h>
 #include <KeyStore.h>
 #include <private/interface/AboutWindow.h>
 #include <cstdio>
 #include "KeysApplication.h"
-#include "KeysDefs.h"
 #include "KeysWindow.h"
-#include "KeystoreImp.h"
+#include "../KeysDefs.h"
+#include "../data/BackUpUtils.h"
+#include "../data/KeystoreImp.h"
 
 KeysApplication::KeysApplication()
 : BApplication(kAppSignature), frame(BRect(50, 50, 720, 480))
@@ -38,29 +40,52 @@ void KeysApplication::MessageReceived(BMessage* msg)
         case B_ABOUT_REQUESTED:
             AboutRequested();
             break;
-        case M_USER_PROVIDES_KEY:
-        case M_USER_REMOVES_KEY:
-        case M_USER_REMOVES_APPAUTH:
-        {
-            BString targetkeyring = msg->GetString("owner");
-            if(!targetkeyring.IsEmpty()) {
-                _InitKeyring(&ks, &keystore, targetkeyring.String());
-                BMessenger msgr(NULL, window, NULL);
-                msgr.SendMessage(msg);
-            }
-            break;
-        }
         case I_SERVER_RESTART:
             _RestartServer();
             break;
-        case M_USER_ADDS_KEYRING:
-        case M_USER_REMOVES_KEYRING:
-        {
-            BString owner = msg->GetString("owner");
 
-            window->Update((const void*)owner.String());
+        case M_KEYSTORE_BACKUP:
+            KeystoreBackup(msg);
             break;
-        }
+        case M_KEYSTORE_WIPE_CONTENTS:
+            WipeKeystoreContents(msg);
+            break;
+
+        case M_KEYRING_CREATE:
+            AddKeyring(msg);
+            break;
+        case M_KEYRING_DELETE:
+            RemoveKeyring(msg);
+            break;
+        case M_KEYRING_WIPE_CONTENTS:
+            WipeKeyringContents(msg);
+            break;
+        case M_KEYRING_LOCK:
+            LockKeyring(msg);
+            break;
+        case M_KEYRING_SET_LOCKKEY:
+            SetKeyringLockKey(msg);
+            break;
+        case M_KEYRING_UNSET_LOCKKEY:
+            RemoveKeyringLockKey(msg);
+            break;
+
+        case M_KEY_CREATE:
+            AddKey(msg);
+            break;
+        case M_KEY_IMPORT:
+            ImportKey(msg);
+            break;
+        case M_KEY_EXPORT:
+            ExportKey(msg);
+            break;
+        case M_KEY_DELETE:
+            RemoveKey(msg);
+            break;
+
+        case M_APPAUTH_DELETE:
+            RemoveApp(msg);
+            break;
         default:
             BApplication::MessageReceived(msg);
             break;
@@ -123,6 +148,286 @@ void KeysApplication::AboutRequested()
 
 // #pragma mark -
 
+void KeysApplication::KeystoreBackup(BMessage* msg)
+{
+    uint32 method;
+    BString password;
+    if(msg->FindUInt32("method", &method) != B_OK ||
+    msg->FindString("password", &password) != B_OK)
+        return;
+
+    switch(method) {
+        case 'copy': {
+            DoPlainKeystoreBackup();
+            return;
+        }
+#if defined(USE_OPENSSL)
+        case 'ssl ':
+            // DoEncryptedKeystoreBackup(password.String());
+            return;
+#endif
+        default:
+            return;
+    }
+}
+
+void KeysApplication::WipeKeystoreContents(BMessage* msg)
+{
+    int32 count = ks.KeyringCount();
+    for(int i = count - 1; i >= 0; i--) {
+        // Master is protected, we can only clean it up
+        if(strcmp(ks.KeyringAt(i)->Identifier(), "Master") == 0) {
+            BMessage data;
+            data.AddString(kConfigKeyring, "Master");
+            WipeKeyringContents(&data);
+        }
+        // For the others, we can straight up delete them
+        else ks.RemoveKeyring(ks.KeyringAt(i)->Identifier(), true);
+    }
+    window->Update();
+}
+
+void KeysApplication::AddKeyring(BMessage* msg)
+{
+    BString keyring;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK)
+        return;
+
+    if(ks.KeyringByName(keyring.String()))
+        return;
+
+    (void)ks.AddKeyring(keyring.String(), true);
+    // we could here refill the database to retrieve entries under the keyring,
+    //  but at this point, the keyring is empty anyways, so let's save cycles
+
+    void* ptr = nullptr;
+    if(msg->FindPointer(kConfigWho, &ptr) == B_OK)
+        ((KeysWindow*)ptr)->Update();
+}
+
+void KeysApplication::LockKeyring(BMessage* msg)
+{
+    BString keyring;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK)
+        return;
+
+    if(ks.KeyringByName(keyring.String()) == nullptr)
+        return;
+
+    status_t status = ks.KeyringByName(keyring.String())->Lock();
+
+    _Notify(nullptr, msg, status);
+}
+
+void KeysApplication::SetKeyringLockKey(BMessage* msg)
+{
+    BString keyring;
+    BMessage key;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
+    msg->FindMessage(kConfigKey, &key) != B_OK)
+        return;
+
+    if(ks.KeyringByName(keyring.String()) == nullptr)
+        return;
+
+    (void)ks.KeyringByName(keyring.String())->SetUnlockKey(&key);
+
+    void* ptr = nullptr;
+    if(msg->FindPointer(kConfigWho, &ptr) == B_OK)
+        ((KeysWindow*)ptr)->Update();
+}
+
+void KeysApplication::RemoveKeyringLockKey(BMessage* msg)
+{
+    BString keyring;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK)
+        return;
+
+    if(ks.KeyringByName(keyring.String()) == nullptr)
+        return;
+
+    status_t status = ks.KeyringByName(keyring.String())->RemoveUnlockKey();
+
+    _Notify(nullptr, msg, status);
+}
+
+void KeysApplication::WipeKeyringContents(BMessage* msg)
+{
+    BString keyring;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK) {
+        __trace("Error: data member \"kConfigKeyring\" not found.\n");
+        return;
+    }
+
+    if(ks.KeyringByName(keyring.String()) == nullptr)
+        return;
+
+    KeyringImp* target = ks.KeyringByName(keyring.String());
+    int count = target->KeyCount();
+    for(int i = count - 1 ; i >= 0; i--)
+        target->RemoveKey(target->KeyAt(i)->Identifier(), true);
+
+    _Notify((void*)msg->GetPointer(kConfigWho, nullptr), msg, B_OK);
+}
+
+void KeysApplication::RemoveKeyring(BMessage* msg)
+{
+    BString keyring;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK)
+        return;
+
+    if(ks.KeyringByName(keyring.String()) == nullptr)
+        return;
+
+    status_t status = ks.RemoveKeyring(keyring.String(), true);
+
+    _Notify(nullptr, msg, status);
+}
+
+void KeysApplication::AddKey(BMessage* msg)
+{
+    BString keyring = msg->GetString(kConfigKeyring);
+    if(ks.KeyringByName(keyring.String()) == nullptr) {
+        return;
+    }
+
+    BString id, sec;
+    BKeyType t;
+    BKeyPurpose p;
+    const void* data = nullptr;
+    ssize_t length = 0;
+    if(msg->FindString(kConfigKeyName, &id) != B_OK ||
+    msg->FindString(kConfigKeyAltName, &sec) != B_OK ||
+    msg->FindUInt32(kConfigKeyPurpose, (uint32*)&p) != B_OK ||
+    msg->FindUInt32(kConfigKeyType, (uint32*)&t) != B_OK ||
+    msg->FindData(kConfigKeyData, B_RAW_TYPE, &data, &length) != B_OK)
+        return;
+
+    /* Check for duplicates. The API seems to allow partial duplicates
+        as long as they are either of different type or have different
+        secondary identifier.
+
+       This app is currently unable to deal with such partial duplicates.
+    */
+    KeyImp* key = ks.KeyringByName(keyring.String())->KeyByIdentifier(id.String());
+    if(key /*&& key->Type() == t &&
+    strcmp(key->Identifier(), id.String()) == 0 &&
+    strcmp(key->SecondaryIdentifier(), sec.String()) == 0*/) {
+        BMessage answer(msg->what);
+        answer.AddUInt32("result", B_NAME_IN_USE);
+        window->PostMessage(&answer);
+        return;
+    }
+
+    ks.KeyringByName(keyring.String())->AddKey(p, t,
+        id.String(), sec.String(), (const uint8*)data, length, true);
+
+    void* ptr = (void*)msg->GetPointer(kConfigWho, nullptr);
+    if(ptr)
+        ((KeyringView*)ptr)->Update();
+}
+
+void KeysApplication::ImportKey(BMessage* msg)
+{
+    entry_ref ref;
+    BString keyring;
+    if(msg->FindRef("refs", &ref) != B_OK ||
+    msg->FindString(kConfigKeyring, &keyring) != B_OK) {
+        fprintf(stderr, "Error: bad data. No reference or keyring name received.\n");
+        return;
+    }
+
+    BFile file(&ref, B_READ_ONLY);
+    if(file.InitCheck() != B_OK) {
+        fprintf(stderr, "Error: no file from where import.\n");
+        return;
+    }
+
+    BMessage* archive = new BMessage;
+    if(archive->Unflatten(&file) != B_OK) {
+        fprintf(stderr, "Error: the message could not be unflattened from file.\n");
+        delete archive;
+        return;
+    }
+
+    BString id;
+    if(archive->FindString("identifier", &id) != B_OK)
+        fprintf(stderr, "Error, field not found here.\n");
+
+    status_t status;
+    if(ks.KeyringByName(keyring.String())->KeyByIdentifier(id.String()) != nullptr) {
+        fprintf(stderr, "Error: there is already a key with this name.\n");
+        status = B_NAME_IN_USE;
+        goto exit;
+    }
+
+    if((status = ks.KeyringByName(keyring.String())->ImportKey(archive)) != B_OK) {
+        fprintf(stderr, "Error: the key could not be successfully added to the keystore.\n");
+        goto exit;
+    }
+
+exit:
+    _Notify((void*)msg->GetPointer(kConfigWho, nullptr), msg, status);
+    delete archive;
+}
+
+void KeysApplication::ExportKey(BMessage* msg)
+{
+    status_t status = B_OK;
+
+    entry_ref dirref;
+    BString name, keyring, id;
+    if(msg->FindRef("directory", &dirref) != B_OK ||
+    msg->FindString("name", &name) != B_OK ||
+    msg->FindString(kConfigKeyring, &keyring) != B_OK ||
+    msg->FindString(kConfigKeyName, &id) != B_OK)
+        return;
+
+    BMessage* archive = new BMessage;
+    if((status = ks.KeyringByName(keyring.String())->KeyByIdentifier(id.String())->Export(archive)) != B_OK) {
+        delete archive;
+        return;
+    }
+
+    BDirectory directory(&dirref);
+    BFile file(&directory, name.String(), B_READ_WRITE | B_CREATE_FILE | B_FAIL_IF_EXISTS);
+    if((status = file.InitCheck()) != B_OK) {
+        delete archive;
+        return;
+    }
+    status = archive->Flatten(&file);
+
+    _Notify(nullptr, msg, status);
+
+    delete archive;
+}
+
+void KeysApplication::RemoveKey(BMessage* msg)
+{
+    BString keyring, id;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
+    msg->FindString(kConfigKeyName, &id) != B_OK)
+        return;
+
+    status_t status = ks.KeyringByName(keyring.String())->RemoveKey(id.String(), true);
+
+    _Notify(nullptr, msg, status);
+}
+
+void KeysApplication::RemoveApp(BMessage* msg)
+{
+    BString keyring, signature;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
+    msg->FindString(kConfigSignature, &signature) != B_OK)
+        return;
+
+    status_t status = ks.KeyringByName(keyring.String())->RemoveApplication(signature.String(), true);
+
+    _Notify(nullptr, msg, status);
+}
+
+// #pragma mark -
+
 void KeysApplication::_InitAppData(KeystoreImp* ks, BKeyStore* keystore)
 {
     bool next = true;
@@ -136,7 +441,7 @@ void KeysApplication::_InitAppData(KeystoreImp* ks, BKeyStore* keystore)
         {
             case B_OK:
             {
-                fprintf(stderr, "%s\n", keyringName.String());
+                fprintf(stderr, "Found keyring: %s\n", keyringName.String());
                 ks->AddKeyring(keyringName.String());
                 _InitKeyring(ks, keystore, keyringName.String());
                 break;
@@ -167,11 +472,7 @@ void KeysApplication::_InitKeyring(KeystoreImp* ks, BKeyStore* keystore, const c
             keyCookie, key))
         {
             case B_OK:
-                // fprintf(stderr, "%s : name(%s), extraname(%s), purpose(%d), type(%d), data(%s)\n",
-                    // kr, key.Identifier(),
-                    // key.SecondaryIdentifier() == NULL ? "" : key.SecondaryIdentifier(),
-                    // key.Purpose(), key.Type(), key.Data());
-                ks->KeyringByName(kr)->AddKeyToList(key.Purpose(), key.Type(),
+                ks->KeyringByName(kr)->AddKey(key.Purpose(), key.Type(),
                     key.Identifier(), key.SecondaryIdentifier());
                 break;
             case B_BAD_VALUE:
@@ -202,11 +503,7 @@ void KeysApplication::_InitKeyring(KeystoreImp* ks, BKeyStore* keystore, const c
             keyCookie, pwdkey))
         {
             case B_OK:
-                // fprintf(stderr, "%s : name(%s), extraname(%s), purpose(%d), type(%d), data(%s)\n",
-                    // kr, pwdkey.Identifier(),
-                    // pwdkey.SecondaryIdentifier() == NULL ? "" : pwdkey.SecondaryIdentifier(),
-                    // pwdkey.Purpose(), pwdkey.Type(), pwdkey.Data());
-                ks->KeyringByName(kr)->AddKeyToList(pwdkey.Purpose(), pwdkey.Type(),
+                ks->KeyringByName(kr)->AddKey(pwdkey.Purpose(), pwdkey.Type(),
                     pwdkey.Identifier(), pwdkey.SecondaryIdentifier());
                 break;
             case B_BAD_VALUE:
@@ -246,6 +543,18 @@ void KeysApplication::_InitKeyring(KeystoreImp* ks, BKeyStore* keystore, const c
                 break;
         }
     }
+}
+
+void KeysApplication::_Notify(void* ptr, BMessage* msg, status_t result)
+{
+    BMessage reply(msg->what);
+    reply.AddUInt32(kConfigWhat, msg->what);
+    reply.AddInt32(kConfigResult, static_cast<int>(result));
+
+    if(ptr)
+        reply.AddPointer(kConfigWho, ptr);
+
+    msg->SendReply(&reply);
 }
 
 status_t KeysApplication::_RestartServer()

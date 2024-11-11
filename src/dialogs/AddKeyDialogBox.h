@@ -7,7 +7,7 @@
 
 #include <InterfaceKit.h>
 #include <Key.h>
-#include "KeystoreImp.h"
+#include "../data/KeystoreImp.h"
 
 #define AKDLG_KEY_ID        'k1id'
 #define AKDLG_KEY_ID2       'k2id'
@@ -23,18 +23,20 @@
 #define AKDLG_KEY_MODIFIED  'modi'
 #define AKDLG_KEY_SAVE      'save'
 #define AKDLG_KEY_CANCEL    'cncl'
+#define I_KEY_ADD           'iaka'
 
 class AddKeyDialogBox : public BWindow
 {
 public:
-                  AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
-        const char* keyringname, BKeyType desiredType);
+                  AddKeyDialogBox(BWindow* parent, BRect frame, KeystoreImp* _ks,
+                    const char* keyringname, BKeyType desiredType, BView* view);
     virtual void  MessageReceived(BMessage* msg);
     virtual bool  QuitRequested();
 private:
     status_t      _IsValid(BString info);
     void          _SaveKey();
     bool          _IsAbleToSave();
+    void          _UpdateStatusBar(BStatusBar* bar, const char* pwd);
 private:
     BTextControl *tcIdentifier,
                  *tcSecIdentifier,
@@ -45,6 +47,7 @@ private:
                  *pumPurpose;
     BButton      *saveKeyButton,
                  *cancelButton;
+    BStatusBar   *sbPwdStrength;
 
     KeystoreImp  *ks;
     const char   *keyring;
@@ -53,6 +56,9 @@ private:
                   currentData;
     BKeyPurpose   currentPurpose;
     BKeyType      currentDesiredType;
+
+    BWindow      *parentWindow;
+    BView        *containerView;
 };
 
 #endif /* __ADDKEY_DLG_H_ */

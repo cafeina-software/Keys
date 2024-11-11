@@ -7,23 +7,28 @@
 
 #include <InterfaceKit.h>
 #include <Key.h>
+#include "../data/KeystoreImp.h"
 
 #define DV_CLOSE 'clse'
 
 class DataViewerDialogBox : public BWindow
 {
 public:
-                  DataViewerDialogBox(BRect frame, const char* keyringname,
-                    const char* keyid, BKeyType keytype = B_KEY_TYPE_GENERIC);
+                  DataViewerDialogBox(BWindow* parent, BRect frame,
+                    KeystoreImp* imp, const char* keyring, const char* keyid);
     virtual void  MessageReceived(BMessage* msg);
 private:
-    void          _InitKeyData(const char* _kr, const char* _id, BKeyType _type);
+    void          _InitUIData();
     void          _ProcessHexData(const void* indata, const size_t inlength,
                     BString* outdata);
     void          _ProcessEnumData(const int type, const char* desc,
                     BString* out);
     void          _ProcessPurpose(const BKeyPurpose, BString* out);
 private:
+    KeystoreImp  *fImp;
+    const char   *fKeyringName,
+                 *fKeyId;
+
     BButton      *closeButton;
     BTextControl *tcIdentifier;
     BTextControl *tcSecIdentifier;

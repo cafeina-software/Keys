@@ -1,3 +1,44 @@
+# Keys 0.1.0
+
+New unstable version with more behind-the-doors changes to
+improve the reliability of the operations as well as new options
+to perform some additional functions.
+
+* New features:
+
+- (keystore, testing): option to make a plain backup of the database. This is
+   a simple snapshot copy of the database at the time it was performed.
+- (keystore, testing): option to wipe the database. This will delete all the keyrings
+   other than "Master" and all the keys.
+- (keyrings): import key. Option to import a previously exported key
+  (that are in a flattened BMessage format).
+- (keyrings, testing): option to wipe a keyring. This will delete all of its keys but
+  keep the keyring itself.
+- (keyrings): implemented remaining option of the key storage API related
+  to keyring lockdown, including "lock keyring", "set unlock key" and "remove
+  unlock key".
+- (keys): export selected key as a flattened BMessage file. This could allow to
+  use that file to restore it later.
+
+* Improvements:
+
+- Most of the keystore read-write related code was moved to KeysApplication
+  class for generic usage instead of doing it locally. Also the implementations
+  were reworked to make use of messaging and better checks.
+- The keystore data model had some modifications as well.
+- Keyrings list view now uses a customized list view that pops up a context menu
+  with options related to the selected keyring, or a generic pop-up menu with
+  options related to the keystore overall otherwise.
+- The keyring statistics dialog box was reworked. Before it was a simple BAlert,
+  but now it is a more organized full featured dialog box that also shows if the
+  keyring is currently locked.
+- The add key dialog box has a new option that shows the password strength.
+
+* Limitations and known issues:
+
+- It still is not able to properly manage partially duplicated keys. Those are
+  keys with the same identifier but different secondary identifier.
+
 # Keys 0.0.1
 
 This is an unstable initial version intended only for testing and previewing.

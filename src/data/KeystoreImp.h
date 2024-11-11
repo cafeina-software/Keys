@@ -6,7 +6,8 @@
 #define __KEYRING_IMP_H_
 
 #include <Key.h>
-#include <list>
+#include <ObjectList.h>
+#include <SupportDefs.h>
 
 template <typename T>
 T* FindInList(BObjectList<T> list, const char* idstring) {
@@ -27,69 +28,101 @@ T* FindInList(BObjectList<T> list, const char* idstring) {
 }
 
 class KeyringImp;
+class KeystoreImp;
 
 class KeyImp
 {
 public:
-    KeyImp(KeyringImp* _owner, BKeyPurpose purpose, BKeyType t, const char* id,
-        const char* secid = NULL);
+                KeyImp(KeyringImp* parent);
+                KeyImp(KeyringImp* parent, BKey key);
+                KeyImp(KeyringImp* parent, BKeyPurpose, BKeyType t,
+                    const char* id, const char* secid = nullptr,
+                    bigtime_t dc = 0, const char* owner = "");
 
-    const char* Identifier();
-    const char* SecondaryIdentifier();
-    BKeyType Type();
+        /* Getters */
+    KeyringImp *Parent();
+    const char *Identifier();
+    const char *SecondaryIdentifier();
+    BKeyType    Type();
     BKeyPurpose Purpose();
+    bigtime_t   Created();
+    const char *Owner();
+    void        Data(const void* ptr, size_t* len);
 
-    BKey GetBKey();
+        /* No setters: the API does not seem to allow direct key editing... */
 
-    void PrintToStream();
+        /* Data output */
+    [[maybe_unused]]
+    void        PrintToStream();
+    status_t    Export(BMessage* archive);
 private:
-    KeyringImp *owner;
-    BKeyPurpose purpose;
-    BKeyType type;
-    BString identifier;
-    BString secidentifier;
+    void        SetTo(BKeyPurpose, BKeyType t, const char* id, const char* secid,
+                    bigtime_t dc, const char* owner);
+private:
+    KeyringImp *fParent;
+    BKeyPurpose fPurpose;
+    BKeyType    fType;
+    BString     fIdentifier,
+                fSecIdentifier,
+                fOwner;
+    bigtime_t   fCreated;
 };
 
 class ApplicationAccessImp
 {
 public:
-    ApplicationAccessImp(const char* _signature);
-    const char* Identifier();
+                ApplicationAccessImp(KeyringImp* parent, const char* signature);
 
-    void PrintToStream();
+    KeyringImp *Parent();
+    const char *Identifier();
+    status_t    GetRef(entry_ref* ref);
+    [[maybe_unused]]
+    void        PrintToStream();
 private:
-    BString signature;
+    KeyringImp *fParent;
+    BString     fSignature;
 };
 
 class KeyringImp
 {
 public:
-    KeyringImp(const char* _name);
-    ~KeyringImp();
-    const char* Identifier();
+                KeyringImp(KeystoreImp* parent, const char* name);
+               ~KeyringImp();
 
-	void CreateKey(BKeyPurpose purpose, const char* id, const char* secid = NULL,
-        const uint8* data = NULL, size_t length = 0);
-    void AddKeyToList(BKeyPurpose _purpose, BKeyType t, const char* _id, const char* _secid);
-    void RemoveKeyFromList(const char* _id);
-    status_t DeleteKey(const char* _id);
-    KeyImp* KeyByIdentifier(const char* _id);
-    KeyImp* KeyAt(int32 index);
-    int32 KeyCount(BKeyType type = B_KEY_TYPE_ANY, BKeyPurpose purpose = B_KEY_PURPOSE_ANY);
+   KeystoreImp *Parent();
+    const char *Identifier();
+    bool        IsUnlocked();
+    status_t    Lock();
+    status_t    Unlock();
+    status_t    SetUnlockKey(BMessage* data);
+    status_t    RemoveUnlockKey();
 
-    void AddApplicationToList(const char* _appname);
-	// uint32 RetrieveApplications();
-    status_t RemoveApplication(const char* _signature);
-    ApplicationAccessImp* ApplicationBySignature(const char* _signature);
-    ApplicationAccessImp* ApplicationAt(int32 index);
-    int32 ApplicationCount();
+    status_t    AddKey(BKeyPurpose p, BKeyType t, const char* id,
+                    const char* secid, const uint8* data = nullptr,
+                    size_t length = 0, bool createInDb = false);
+    status_t    ImportKey(BMessage* archive);
+    status_t    RemoveKey(const char* id, bool deleteInDb = false);
 
-    void PrintToStream();
-    void Reset();
+    KeyImp     *KeyAt(int32 index);
+    KeyImp     *KeyByIdentifier(const char* id);
+    int32       KeyCount(BKeyType = B_KEY_TYPE_ANY, BKeyPurpose = B_KEY_PURPOSE_ANY);
+
+    void        AddApplicationToList(const char* signature);
+    status_t    RemoveApplication(const char* signature, bool deleteInDb = false);
+    ApplicationAccessImp *ApplicationAt(int32 index);
+    ApplicationAccessImp *ApplicationBySignature(const char* signature);
+    int32       ApplicationCount();
+
+    [[maybe_unused]]
+    void        PrintToStream();
+    void        Reset();
 private:
-    BString name;
-    BObjectList<KeyImp> keylist;
-    BObjectList<ApplicationAccessImp> applicationlist;
+   KeystoreImp *fParent;
+    BString     fName;
+    bool        fHasUnlockKey,
+                fIsUnlocked;
+    BObjectList<KeyImp> fKeyList;
+    BObjectList<ApplicationAccessImp> fAppList;
 };
 
 class KeystoreImp
@@ -97,17 +130,19 @@ class KeystoreImp
 public:
     KeystoreImp();
     ~KeystoreImp();
-    status_t CreateKeyring(const char* _name);
-    void AddKeyring(const char* _name);
-    status_t RemoveKeyring(const char* _name);
-    KeyringImp* KeyringByName(const char* _name);
-    KeyringImp* KeyringAt(int32 index);
-    int32 KeyringCount();
 
-    void PrintToStream();
-    void Reset();
+    status_t    AddKeyring(const char* name, bool createInDb = false);
+    status_t    RemoveKeyring(const char* name, bool deleteInDb = false);
+    KeyringImp *KeyringAt(int32 index);
+    KeyringImp *KeyringByName(const char* name);
+    int32       KeyringCount();
+
+    [[maybe_unused]]
+    void        PrintToStream();
+    bool        IsEmpty();
+    void        Reset();
 private:
-    BObjectList<KeyringImp> keyringlist;
+    BObjectList<KeyringImp> fKeyringList;
 };
 
 #endif

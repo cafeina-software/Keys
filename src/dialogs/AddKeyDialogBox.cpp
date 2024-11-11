@@ -5,16 +5,20 @@
 #include <Application.h>
 #include <Catalog.h>
 #include <KeyStore.h>
+#include <pwd.h>
+#include <unistd.h>
 #include <cstdio>
+#include <ctime>
 #include "AddKeyDialogBox.h"
-#include "KeysDefs.h"
-#include "KeystoreImp.h"
+#include "../KeysDefs.h"
+#include "../data/KeystoreImp.h"
+#include "../data/PasswordStrength.h"
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Add key dialog box"
 
-AddKeyDialogBox::AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
-    const char* keyringname, BKeyType desiredType)
+AddKeyDialogBox::AddKeyDialogBox(BWindow* parent, BRect frame, KeystoreImp* _ks,
+    const char* keyringname, BKeyType desiredType, BView* view)
 : BWindow(frame, B_TRANSLATE("Add new key"), B_FLOATING_WINDOW_LOOK, B_FLOATING_ALL_WINDOW_FEEL,
     B_NOT_ZOOMABLE|B_NOT_RESIZABLE|B_AUTO_UPDATE_SIZE_LIMITS),
     ks(_ks),
@@ -23,7 +27,9 @@ AddKeyDialogBox::AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
     currentId2(""),
     currentData(""),
     currentPurpose(B_KEY_PURPOSE_ANY),
-    currentDesiredType(desiredType)
+    currentDesiredType(desiredType),
+    parentWindow(parent),
+    containerView(view)
 {
     BString desc(B_TRANSLATE("Adding key to \"%desc%\" keyring."));
     desc.ReplaceAll("%desc%", keyring);
@@ -53,6 +59,9 @@ AddKeyDialogBox::AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
         new BMessage(AKDLG_KEY_DATA));
     tcData->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
     tcData->TextView()->HideTyping(true);
+    sbPwdStrength = new BStatusBar("sb_ent");
+    sbPwdStrength->SetBarHeight(tcData->Bounds().Height() / 2.0f);
+    sbPwdStrength->SetMaxValue(1.0f);
 
     pumPurpose = new BPopUpMenu(B_TRANSLATE("Select the purpose"), B_ITEMS_IN_COLUMN);
     BLayoutBuilder::Menu<>(pumPurpose)
@@ -77,10 +86,11 @@ AddKeyDialogBox::AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
         .AddGrid()
             .SetInsets(B_USE_WINDOW_INSETS)
             .AddMenuField(mfType, 0, 0)
-            .AddTextControl(tcIdentifier, 0, 1)
-            .AddTextControl(tcSecIdentifier, 0, 2)
-            .AddTextControl(tcData, 0, 3)
-            .AddMenuField(mfPurpose, 0, 4)
+            .AddMenuField(mfPurpose, 0, 1)
+            .AddTextControl(tcIdentifier, 0, 2)
+            .AddTextControl(tcSecIdentifier, 0, 3)
+            .AddTextControl(tcData, 0, 4)
+            .Add(sbPwdStrength, 1, 5)
         .End()
         .Add(new BSeparatorView())
         .AddGroup(B_HORIZONTAL)
@@ -91,7 +101,7 @@ AddKeyDialogBox::AddKeyDialogBox(BRect frame, KeystoreImp* _ks,
         .End()
     .End();
 
-    CenterOnScreen();
+    CenterIn(parentWindow->Frame());
 }
 
 void AddKeyDialogBox::MessageReceived(BMessage* msg)
@@ -111,7 +121,7 @@ void AddKeyDialogBox::MessageReceived(BMessage* msg)
             currentId = tcIdentifier->Text();
             currentId2 = tcSecIdentifier->Text();
             currentData = tcData->Text();
-
+            _UpdateStatusBar(sbPwdStrength, tcData->Text());
             saveKeyButton->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_TYP_GEN:
@@ -147,8 +157,6 @@ void AddKeyDialogBox::MessageReceived(BMessage* msg)
                 _SaveKey();
                 QuitRequested();
             }
-            else
-                fprintf(stderr, "Error: invalid data.\n");
             break;
         case AKDLG_KEY_CANCEL:
             QuitRequested();
@@ -183,23 +191,41 @@ bool AddKeyDialogBox::_IsAbleToSave()
 
 void AddKeyDialogBox::_SaveKey()
 {
-    BKeyStore keystore;
+    BMessage request(I_KEY_ADD);
+    request.AddString(kConfigKeyring, keyring);
+    request.AddPointer(kConfigWho, containerView);
+    request.AddString(kConfigKeyName, currentId);
+    request.AddString(kConfigKeyAltName, currentId2);
+    request.AddUInt32(kConfigKeyType, (uint32)currentDesiredType);
+    request.AddUInt32(kConfigKeyPurpose, (uint32)currentPurpose);
+    request.AddInt64(kConfigKeyCreated, std::time(nullptr)); // not used by the API
+    BString owner;
+    passwd* pwd = getpwuid(geteuid());
+    if(pwd) owner.SetTo(pwd->pw_name);
+    else owner.SetTo("");
+    request.AddString(kConfigKeyOwner, owner.String());  // not used by the API
+    /* Somehow this has to be the last entry, otherwise it will be polluted by
+        bad data (eating up the entry name of the next object added). Some kind
+        of bug or just bad implementation? */
+    request.AddData(kConfigKeyData, B_RAW_TYPE,
+        reinterpret_cast<const void*>(currentData.String()),
+        static_cast<ssize_t>(strlen(currentData.String())));
+    parentWindow->PostMessage(&request, parentWindow);
 
-    if(currentDesiredType == B_KEY_TYPE_PASSWORD) {
-        BPasswordKey key(currentData.String(), currentPurpose,
-            currentId.String(), currentId2 == "" ? NULL : currentId2.String());
-        keystore.AddKey(keyring, key);
-    }
-    else {
-        BKey key(currentPurpose, currentId.String(),
-            currentId2 == "" ? NULL : currentId2.String(),
-            reinterpret_cast<const uint8*>(currentData.String()),
-            strlen(currentData.String()));
-        keystore.AddKey(keyring, key);
-    }
+}
 
-    BMessenger msgr(be_app_messenger);
-    BMessage savemsg(M_USER_PROVIDES_KEY);
-    savemsg.AddString("owner", keyring);
-    msgr.SendMessage(&savemsg, msgr);
+void AddKeyDialogBox::_UpdateStatusBar(BStatusBar* bar, const char* pwd)
+{
+    float value = PasswordStrength(pwd);
+    bar->SetTo(value
+#if 0
+    , std::to_string(value).c_str()
+#endif
+    );
+    if(value < 0.5f)
+        bar->SetBarColor(ui_color(B_FAILURE_COLOR));
+    else if(value > 0.5f && value < 0.75f)
+        bar->SetBarColor({255, 255, 0}); //(ui_color(B_TOOL_TIP_BACKGROUND_COLOR))
+    else
+        bar->SetBarColor(ui_color(B_SUCCESS_COLOR));
 }

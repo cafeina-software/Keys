@@ -8,7 +8,7 @@
 #include <InterfaceKit.h>
 #include <private/interface/ColumnListView.h>
 #include <private/shared/ToolBar.h>
-#include "KeystoreImp.h"
+#include "../data/KeystoreImp.h"
 
 #define KRV_KEYS_SEL    'ksel'
 #define KRV_KEYS_INVOKE 'kivk'
@@ -16,6 +16,7 @@
 #define KRV_KEYS_REMOVE 'krem'
 #define KRV_KEYS_COPY   'kcpy'
 #define KRV_KEYS_VWDATA 'kvwd'
+#define KRV_KEYS_EXPORT 'kexp'
 #define KRV_APPS_SEL    'asel'
 #define KRV_APPS_INVOKE 'aivk'
 #define KRV_APPS_REMOVE 'arem'
@@ -42,8 +43,6 @@ private:
     BTabView        *tabView;
     BColumnListView *keylistview,
                     *applistview;
-    BBitmap         *keyIcon,
-                    *appIcon;
     BToolBar        *keylsttoolbar,
                     *applsttoolbar;
 

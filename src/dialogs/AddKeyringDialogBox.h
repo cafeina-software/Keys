@@ -6,7 +6,7 @@
 #define __ADDKEYRING_DLG_H_
 
 #include <InterfaceKit.h>
-#include "KeystoreImp.h"
+#include "../data/KeystoreImp.h"
 
 #define AKRDLG_SAVE         'akrs'
 #define AKRDLG_CANCEL       'akrc'
@@ -15,7 +15,7 @@
 class AddKeyringDialogBox : public BWindow
 {
 public:
-                  AddKeyringDialogBox(BRect frame, KeystoreImp& _ks);
+                  AddKeyringDialogBox(BWindow* parent, BRect frame, KeystoreImp& _ks);
     virtual void  MessageReceived(BMessage* msg);
 private:
     status_t      _IsValid(KeystoreImp ks, BString name);
@@ -28,6 +28,7 @@ private:
 
     BFont         errorfont;
 
+    BWindow*      fParent;
     BTextControl* tcKeyringName;
     BStringView*  svErrorDesc;
     BButton*      saveButton;

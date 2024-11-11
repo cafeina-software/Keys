@@ -5,17 +5,18 @@
 #include <Application.h>
 #include <Catalog.h>
 #include "AddKeyringDialogBox.h"
-#include "KeysDefs.h"
+#include "../KeysDefs.h"
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Add keyring dialog box"
 
-AddKeyringDialogBox::AddKeyringDialogBox(BRect frame, KeystoreImp& _ks)
+AddKeyringDialogBox::AddKeyringDialogBox(BWindow* parent, BRect frame, KeystoreImp& _ks)
 : BWindow(frame, B_TRANSLATE("Create keyring"), B_FLOATING_WINDOW_LOOK,
     B_FLOATING_ALL_WINDOW_FEEL,
     B_NOT_ZOOMABLE|B_NOT_RESIZABLE|B_AUTO_UPDATE_SIZE_LIMITS|B_CLOSE_ON_ESCAPE),
     ks(&_ks),
-    currentKeyringName("")
+    currentKeyringName(""),
+    fParent(parent)
 {
     BString description(
         B_TRANSLATE("Write the desired name for the new keyring below.\n\n"
@@ -59,7 +60,7 @@ AddKeyringDialogBox::AddKeyringDialogBox(BRect frame, KeystoreImp& _ks)
         .End()
     .End();
 
-    CenterOnScreen();
+    CenterIn(fParent->Frame());
 }
 
 void AddKeyringDialogBox::MessageReceived(BMessage* msg)
@@ -131,11 +132,8 @@ void AddKeyringDialogBox::_UpdateTextControlUI(bool tcinvalid, bool saveenabled,
 
 void AddKeyringDialogBox::_CallAddKeyring(KeystoreImp& ks, BString name)
 {
-    status_t status = ks.CreateKeyring(name);
-
-    if(status == B_OK) {
-        BMessage addkrmsg(M_USER_ADDS_KEYRING);
-        addkrmsg.AddString("owner", name);
-        be_app->PostMessage(&addkrmsg);
-    }
+    BMessage request(M_KEYRING_CREATE);
+    request.AddString(kConfigKeyring, currentKeyringName);
+    request.AddPointer(kConfigWho, fParent);
+    be_app_messenger.SendMessage(&request);
 }

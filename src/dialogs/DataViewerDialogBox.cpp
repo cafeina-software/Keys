@@ -6,15 +6,23 @@
 #include <KeyStore.h>
 #include <string>
 #include "DataViewerDialogBox.h"
+#include "../data/KeystoreImp.h"
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Data viewer dialog box"
 
-DataViewerDialogBox::DataViewerDialogBox(BRect frame, const char* keyringname,
-    const char* id, BKeyType keytype)
-: BWindow(frame, B_TRANSLATE("Data viewer"), B_FLOATING_WINDOW,
-    B_AUTO_UPDATE_SIZE_LIMITS | B_ASYNCHRONOUS_CONTROLS)
+DataViewerDialogBox::DataViewerDialogBox(BWindow* parent, BRect frame,
+    KeystoreImp* imp, const char* keyring, const char* keyid)
+: BWindow(frame, B_TRANSLATE("Data viewer: <no key>"), B_FLOATING_WINDOW,
+    B_AUTO_UPDATE_SIZE_LIMITS | B_ASYNCHRONOUS_CONTROLS | B_CLOSE_ON_ESCAPE),
+  fImp(imp),
+  fKeyringName(keyring),
+  fKeyId(keyid)
 {
+    BString title(B_TRANSLATE("Data viewer: "));
+    title.Append(fKeyId);
+    SetTitle(title.String());
+
     rgb_color viewColor = ui_color(B_DOCUMENT_BACKGROUND_COLOR);
     rgb_color textColor = ui_color(B_DOCUMENT_TEXT_COLOR);
 
@@ -64,7 +72,7 @@ DataViewerDialogBox::DataViewerDialogBox(BRect frame, const char* keyringname,
     BScrollView *scHexScroll = new BScrollView("scv_hex", tvHex, 0, false,
         true, B_FANCY_BORDER);
 
-    _InitKeyData(keyringname, id, keytype);
+    _InitUIData();
 
     BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
         .SetInsets(0)
@@ -97,7 +105,7 @@ DataViewerDialogBox::DataViewerDialogBox(BRect frame, const char* keyringname,
     .End();
 
     FindView("sv_not")->SetHighColor({128, 128, 128, 255});
-    CenterOnScreen();
+    CenterIn(parent->Frame());
 }
 
 void DataViewerDialogBox::MessageReceived(BMessage* msg)
@@ -108,11 +116,15 @@ void DataViewerDialogBox::MessageReceived(BMessage* msg)
         BWindow::MessageReceived(msg);
 }
 
-void DataViewerDialogBox::_InitKeyData(const char* _kr, const char* _id, BKeyType _type)
+void DataViewerDialogBox::_InitUIData()
 {
-    tcIdentifier->SetText(_id);
+    KeyImp* key = fImp->KeyringByName(fKeyringName)->KeyByIdentifier(fKeyId);
+
+    tcIdentifier->SetText(key->Identifier());
+    tcSecIdentifier->SetText(key->SecondaryIdentifier());
 
     BString typedesc;
+    BKeyType _type = key->Type();
     switch(_type)
     {
         case B_KEY_TYPE_GENERIC:
@@ -134,11 +146,15 @@ void DataViewerDialogBox::_InitKeyData(const char* _kr, const char* _id, BKeyTyp
             break;
     }
 
-    BKeyStore keystore;
+    BString purposestr;
+    _ProcessPurpose(key->Purpose(), &purposestr);
+    tcPurpose->SetText(purposestr);
+    tcDCreated->SetText(std::to_string(key->Created()).c_str());
+    tcOwner->SetText(key->Owner());
 
     if(_type == B_KEY_TYPE_PASSWORD) {
         BPasswordKey pwdkey;
-        keystore.GetKey(_kr, B_KEY_TYPE_PASSWORD, _id, pwdkey);
+        BKeyStore().GetKey(fKeyringName, B_KEY_TYPE_PASSWORD, fKeyId, pwdkey);
         tvData->SetText((const char*)pwdkey.Data());
         size_t inlength = pwdkey.DataLength();
         BString outdata;
@@ -146,20 +162,10 @@ void DataViewerDialogBox::_InitKeyData(const char* _kr, const char* _id, BKeyTyp
         int32 curlen = tvHex->TextLength();
         tvHex->Delete(0, curlen);
         tvHex->SetText(outdata.String());
-
-        tcSecIdentifier->SetText(pwdkey.SecondaryIdentifier());
-
-        BString purposestr;
-        _ProcessPurpose(pwdkey.Purpose(), &purposestr);
-        tcPurpose->SetText(purposestr);
-
-        tcDCreated->SetText(std::to_string(pwdkey.CreationTime()).c_str());
-
-        tcOwner->SetText(pwdkey.Owner());
     }
     else {
         BKey key;
-        keystore.GetKey(_kr, B_KEY_TYPE_GENERIC, _id, key);
+        BKeyStore().GetKey(fKeyringName, B_KEY_TYPE_GENERIC, fKeyId, key);
         tvData->SetText((const char*)key.Data());
         size_t inlength = key.DataLength();
         BString outdata;
@@ -167,16 +173,6 @@ void DataViewerDialogBox::_InitKeyData(const char* _kr, const char* _id, BKeyTyp
         int32 curlen = tvHex->TextLength();
         tvHex->Delete(0, curlen);
         tvHex->SetText(outdata.String());
-
-        tcSecIdentifier->SetText(key.SecondaryIdentifier());
-
-        BString purposestr;
-        _ProcessPurpose(key.Purpose(), &purposestr);
-        tcPurpose->SetText(purposestr);
-
-        tcDCreated->SetText(std::to_string(key.CreationTime()).c_str());
-
-        tcOwner->SetText(key.Owner());
     }
 }
 
@@ -203,7 +199,7 @@ void DataViewerDialogBox::_ProcessHexData(const void* indata, const size_t inlen
     char* current = hexstring;
     const unsigned char* data = ((const unsigned char*)indata);
 
-    for(int i = 0, c = 0; i < inlength; i++) {
+    for(int i = 0, c = 0; i < static_cast<int>(inlength); i++) {
         sprintf(current, "%.2x", data[i]);
         current += 2;
         if(c < 7) {
@@ -218,7 +214,7 @@ void DataViewerDialogBox::_ProcessHexData(const void* indata, const size_t inlen
         }
     }
     *current = '\0';
-    size_t newlength = strlen(hexstring);
+    //size_t newlength = strlen(hexstring);
     *outdata = hexstring;
     delete[] hexstring;
 }
