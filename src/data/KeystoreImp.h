@@ -27,6 +27,25 @@ T* FindInList(BObjectList<T> list, const char* idstring) {
 	return selection;
 }
 
+template <typename T>
+T* FindInList2(BObjectList<T> list, const char* idstring, const char* secstring) {
+    T* selection = NULL;
+
+	int i = 0;
+	bool found = false;
+
+	while(i < list.CountItems() && !found) {
+		if(strcmp(list.ItemAt(i)->Identifier(), idstring) == 0 &&
+        strcmp(list.ItemAt(i)->SecondaryIdentifier(), secstring) == 0) {
+			found = true;
+			selection = list.ItemAt(i);
+		}
+		i++;
+	}
+
+	return selection;
+}
+
 class KeyringImp;
 class KeystoreImp;
 
@@ -102,9 +121,12 @@ public:
                     size_t length = 0, bool createInDb = false);
     status_t    ImportKey(BMessage* archive);
     status_t    RemoveKey(const char* id, bool deleteInDb = false);
+    status_t    RemoveKey(const char* id, const char* secid = nullptr,
+                    bool deleteInDb = false);
 
     KeyImp     *KeyAt(int32 index);
     KeyImp     *KeyByIdentifier(const char* id);
+    KeyImp     *KeyByIdentifier(const char* id, const char* secondary_id);
     int32       KeyCount(BKeyType = B_KEY_TYPE_ANY, BKeyPurpose = B_KEY_PURPOSE_ANY);
 
     void        AddApplicationToList(const char* signature);

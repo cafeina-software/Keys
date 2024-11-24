@@ -12,12 +12,13 @@
 #define B_TRANSLATION_CONTEXT "Data viewer dialog box"
 
 DataViewerDialogBox::DataViewerDialogBox(BWindow* parent, BRect frame,
-    KeystoreImp* imp, const char* keyring, const char* keyid)
+    KeystoreImp* imp, const char* keyring, const char* keyid, const char* secid)
 : BWindow(frame, B_TRANSLATE("Data viewer: <no key>"), B_FLOATING_WINDOW,
     B_AUTO_UPDATE_SIZE_LIMITS | B_ASYNCHRONOUS_CONTROLS | B_CLOSE_ON_ESCAPE),
   fImp(imp),
   fKeyringName(keyring),
-  fKeyId(keyid)
+  fKeyId(keyid),
+  fKeySecondaryId(secid)
 {
     BString title(B_TRANSLATE("Data viewer: "));
     title.Append(fKeyId);
@@ -100,7 +101,7 @@ DataViewerDialogBox::DataViewerDialogBox(BWindow* parent, BRect frame,
         .AddGroup(B_HORIZONTAL)
             .SetInsets(B_USE_WINDOW_INSETS)
             .AddGlue()
-            .Add(new BButton("bt_close", B_TRANSLATE("Close"), new BMessage(DV_CLOSE)))
+            .Add(closeButton = new BButton("bt_close", B_TRANSLATE("Close"), new BMessage(DV_CLOSE)))
         .End()
     .End();
 
@@ -110,15 +111,20 @@ DataViewerDialogBox::DataViewerDialogBox(BWindow* parent, BRect frame,
 
 void DataViewerDialogBox::MessageReceived(BMessage* msg)
 {
-    if(msg->what == DV_CLOSE)
-        Quit();
-    else
-        BWindow::MessageReceived(msg);
+    switch(msg->what)
+    {
+        case DV_CLOSE:
+            Quit();
+            break;
+        default:
+            BWindow::MessageReceived(msg);
+            break;
+    }
 }
 
 void DataViewerDialogBox::_InitUIData()
 {
-    KeyImp* key = fImp->KeyringByName(fKeyringName)->KeyByIdentifier(fKeyId);
+    KeyImp* key = fImp->KeyringByName(fKeyringName)->KeyByIdentifier(fKeyId, fKeySecondaryId);
 
     tcIdentifier->SetText(key->Identifier());
     tcSecIdentifier->SetText(key->SecondaryIdentifier());
@@ -154,7 +160,7 @@ void DataViewerDialogBox::_InitUIData()
 
     if(_type == B_KEY_TYPE_PASSWORD) {
         BPasswordKey pwdkey;
-        BKeyStore().GetKey(fKeyringName, B_KEY_TYPE_PASSWORD, fKeyId, pwdkey);
+        BKeyStore().GetKey(fKeyringName, B_KEY_TYPE_PASSWORD, fKeyId, fKeySecondaryId, false, pwdkey);
         tvData->SetText((const char*)pwdkey.Data());
         size_t inlength = pwdkey.DataLength();
         BString outdata;
@@ -165,7 +171,7 @@ void DataViewerDialogBox::_InitUIData()
     }
     else {
         BKey key;
-        BKeyStore().GetKey(fKeyringName, B_KEY_TYPE_GENERIC, fKeyId, key);
+        BKeyStore().GetKey(fKeyringName, B_KEY_TYPE_GENERIC, fKeyId, fKeySecondaryId, false, key);
         tvData->SetText((const char*)key.Data());
         size_t inlength = key.DataLength();
         BString outdata;

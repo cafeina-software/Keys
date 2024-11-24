@@ -17,14 +17,14 @@
 #include "../dialogs/AddKeyDialogBox.h"
 #include "../dialogs/DataViewerDialogBox.h"
 
-BBitmap* icon_loader(const char* name, int x_size, int y_size) {
-    size_t length = 0;
-    BResources *res = BApplication::AppResources();
-    const void* data = res->LoadResource(B_VECTOR_ICON_TYPE, name, &length);
-    BBitmap* bitmap = new BBitmap(BRect(0, 0, x_size, y_size), B_RGBA32);
-    BIconUtils::GetVectorIcon((uint8*)(data), length, bitmap);
-    return bitmap;
-}
+BBitmap* addKeyIcon;
+BBitmap* removeKeyIcon;
+BBitmap* exportKeyIcon;
+BBitmap* copySecretIcon;
+BBitmap* viewKeyDataIcon;
+BBitmap* removeAppIcon;
+BBitmap* copySignIcon;
+BBitmap* trackerIcon;
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Keyring view"
@@ -32,8 +32,6 @@ BBitmap* icon_loader(const char* name, int x_size, int y_size) {
 KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
 : BView(frame, name, 0, 0), ks(_ks), keyringname(name)
 {
-    unsigned int isize = 32;
-
     keylistview = new BColumnListView("clv_keylist", 0, B_FANCY_BORDER);
     keylistview->SetSelectionMode(B_SINGLE_SELECTION_LIST);
     keylistview->SetSelectionMessage(new BMessage(KRV_KEYS_SEL));
@@ -49,20 +47,20 @@ KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
 
     keylsttoolbar = new BToolBar(B_VERTICAL);
     keylsttoolbar->AddAction(KRV_KEYS_CREATE, this,
-        icon_loader("i_key_create", isize, isize),
+        addKeyIcon,
         B_TRANSLATE("Add key"), "", false);
     keylsttoolbar->AddAction(KRV_KEYS_REMOVE, this,
-        icon_loader("i_key_remove", isize, isize),
+        removeKeyIcon,
         B_TRANSLATE("Remove key"), "", false);
     keylsttoolbar->AddAction(KRV_KEYS_EXPORT, this,
-        icon_loader("i_key_cvt2msg", isize, isize),
+        exportKeyIcon,
         B_TRANSLATE("Export key as flattened BMessage"), "", false);
     keylsttoolbar->AddSeparator();
     keylsttoolbar->AddAction(KRV_KEYS_COPY, this,
-        icon_loader("i_key_cpydata", isize, isize),
+        copySecretIcon,
         B_TRANSLATE("Copy key secret"), "", false);
     keylsttoolbar->AddAction(KRV_KEYS_VWDATA, this,
-        icon_loader("i_key_viewdata", isize, isize),
+        viewKeyDataIcon,
         B_TRANSLATE("View key data"), "", false);
     keylsttoolbar->AddGlue();
     for(const auto& it : { KRV_KEYS_REMOVE, KRV_KEYS_COPY, KRV_KEYS_VWDATA, KRV_KEYS_EXPORT })
@@ -86,15 +84,18 @@ KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
 
     applsttoolbar = new BToolBar(B_VERTICAL);
     applsttoolbar->AddAction(KRV_APPS_REMOVE, this,
-        icon_loader("i_app_remove", isize, isize),
+        removeAppIcon,
         B_TRANSLATE("Remove application"), "", false);
     applsttoolbar->AddSeparator();
     applsttoolbar->AddAction(KRV_APPS_COPY, this,
-        icon_loader("i_app_cpysgn", isize, isize),
+        copySignIcon,
         B_TRANSLATE("Copy signature"), "", false);
+    applsttoolbar->AddAction(KRV_APPS_INVOKE, this,
+        trackerIcon,
+        B_TRANSLATE("Open information view"), "", false);
     applsttoolbar->AddGlue();
-    applsttoolbar->FindButton(KRV_APPS_REMOVE)->SetEnabled(false);
-    applsttoolbar->FindButton(KRV_APPS_COPY)->SetEnabled(false);
+    for(const auto& it : { KRV_APPS_REMOVE, KRV_APPS_COPY, KRV_APPS_INVOKE })
+        applsttoolbar->FindButton(it)->SetEnabled(false);
 
     BView *authorizedAppsView = new BView(B_TRANSLATE("Authorized applications"),
         B_SUPPORTS_LAYOUT, NULL);
@@ -112,7 +113,7 @@ KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
         .Add(tabView)
     .End();
 
-    _InitAppData(ks);
+    _InitAppData(/*ks*/);
 
     keylistview->ResizeAllColumnsToPreferred();
     applistview->ResizeAllColumnsToPreferred();
@@ -123,12 +124,12 @@ void KeyringView::AttachedToWindow()
     keylistview->SetTarget(this);
 
     for(const auto& command : { KRV_KEYS_CREATE, KRV_KEYS_REMOVE, KRV_KEYS_COPY,
-    KRV_KEYS_VWDATA, KRV_KEYS_EXPORT })
+    KRV_KEYS_VWDATA, KRV_KEYS_EXPORT})
         keylsttoolbar->FindButton(command)->SetTarget(this);
 
     applistview->SetTarget(this);
 
-    for(const auto& command : { KRV_APPS_REMOVE, KRV_APPS_COPY })
+    for(const auto& command : { KRV_APPS_REMOVE, KRV_APPS_COPY, KRV_APPS_INVOKE })
         applsttoolbar->FindButton(command)->SetTarget(this);
 }
 
@@ -144,7 +145,7 @@ void KeyringView::MessageReceived(BMessage* msg)
             break;
         case KRV_KEYS_CREATE:
         {
-            AddKeyDialogBox* dlg = new AddKeyDialogBox(Window(), BRect(20, 20, 200, 200), ks,
+            AddKeyDialogBox* dlg = new AddKeyDialogBox(Window(), BRect(20, 20, 200, 200), //ks,
                 keyringname, B_KEY_TYPE_GENERIC, this);
             dlg->Show();
             break;
@@ -153,6 +154,7 @@ void KeyringView::MessageReceived(BMessage* msg)
         {
             if(keylistview->CurrentSelection()) {
                 const char* sel = ((BStringField*)keylistview->CurrentSelection()->GetField(0))->String();
+                const char* sec = ((BStringField*)keylistview->CurrentSelection()->GetField(1))->String();
 
                 BString desc(B_TRANSLATE("Do you want to remove the key \"%key%\" from this keyring?"));
                 desc.ReplaceAll("%key%", sel);
@@ -162,7 +164,7 @@ void KeyringView::MessageReceived(BMessage* msg)
                 alert->SetShortcut(1, B_ESCAPE);
                 int32 result = alert->Go();
                 if(result == 0) {
-                    _RemoveKey(ks, sel);
+                    _RemoveKey(ks, sel, sec);
                     for(const auto& it : { KRV_KEYS_REMOVE, KRV_KEYS_COPY, KRV_KEYS_VWDATA, KRV_KEYS_EXPORT })
                         keylsttoolbar->FindButton(it)->SetEnabled(false);
                     // Update(NULL);
@@ -182,8 +184,9 @@ void KeyringView::MessageReceived(BMessage* msg)
         {
             if(keylistview->CurrentSelection()) {
                 const char* selection = ((BStringField*)keylistview->CurrentSelection()->GetField(0))->String();
+                const char* secondary = ((BStringField*)keylistview->CurrentSelection()->GetField(1))->String();
                 DataViewerDialogBox* dlg = new DataViewerDialogBox(Window(),
-                    BRect(10, 10, 400, 300), ks, keyringname, selection);
+                    BRect(10, 10, 400, 300), ks, keyringname, selection, secondary);
                 dlg->Show();
             }
             break;
@@ -195,17 +198,19 @@ void KeyringView::MessageReceived(BMessage* msg)
         {
             if(keylistview->CurrentSelection()) {
                 const char* selection = ((BStringField*)keylistview->CurrentSelection()->GetField(0))->String();
+                const char* secondary = ((BStringField*)keylistview->CurrentSelection()->GetField(1))->String();
                 BMessage request(msg->what);
                 request.AddString(kConfigKeyring, keyringname);
                 request.AddString(kConfigKeyName, selection);
+                request.AddString(kConfigKeyAltName, secondary);
                 Window()->PostMessage(&request);
             }
             break;
         }
         case KRV_APPS_SEL:
             if(applistview->CountRows() > 0) {
-                applsttoolbar->FindButton(KRV_APPS_REMOVE)->SetEnabled(true);
-                applsttoolbar->FindButton(KRV_APPS_COPY)->SetEnabled(true);
+                for(const auto& it : { KRV_APPS_REMOVE, KRV_APPS_COPY, KRV_APPS_INVOKE })
+                    applsttoolbar->FindButton(it)->SetEnabled(true);
             }
             break;
         case KRV_APPS_REMOVE:
@@ -221,8 +226,8 @@ void KeyringView::MessageReceived(BMessage* msg)
                 int32 result = alert->Go();
                 if(result == 0) {
                     _RemoveApp(ks, sel);
-                    applsttoolbar->FindButton(KRV_APPS_REMOVE)->SetEnabled(false);
-                    applsttoolbar->FindButton(KRV_APPS_COPY)->SetEnabled(false);
+                    for(const auto& it : { KRV_APPS_REMOVE, KRV_APPS_COPY, KRV_APPS_INVOKE })
+                        applsttoolbar->FindButton(it)->SetEnabled(false);
                     // Update(NULL);
                 }
             }
@@ -270,25 +275,30 @@ void KeyringView::Update(const void* data)
     keylistview->Clear();
     applistview->Clear();
 
-    //ks->KeyringByName(keyringname)->Reset();
+    // Ask application class to update the data model instance for the keyring
+    // BMessage request(M_ASK_FOR_REFRESH), reply;
+    // request.AddString(kConfigKeyring, keyringname);
+    // be_app->PostMessage(&request);
 
-    _InitAppData(ks);
+    _InitAppData(/*ks*/);
 
     UnlockLooper();
 }
 
-void KeyringView::_InitAppData(KeystoreImp* ks)
+void KeyringView::_InitAppData(/*KeystoreImp* ks*/)
 {
     BRow* row = NULL;
 
     for(int i = 0; i < ks->KeyringByName(keyringname)->KeyCount(); i++) {
+        KeyImp* key = ks->KeyringByName(keyringname)->KeyAt(i);
+
         row = new BRow();
 
-        row->SetField(new BStringField(ks->KeyringByName(keyringname)->KeyAt(i)->Identifier()), 0);
-        row->SetField(new BStringField(ks->KeyringByName(keyringname)->KeyAt(i)->SecondaryIdentifier()), 1);
+        row->SetField(new BStringField(key->Identifier()), 0);
+        row->SetField(new BStringField(key->SecondaryIdentifier()), 1);
 
         const char* type;
-        switch(ks->KeyringByName(keyringname)->KeyAt(i)->Type())
+        switch(key->Type())
         {
             case B_KEY_TYPE_GENERIC:
                 type = B_TRANSLATE("Generic");
@@ -307,7 +317,7 @@ void KeyringView::_InitAppData(KeystoreImp* ks)
         row->SetField(new BStringField(type), 2);
 
         const char* purpose;
-        switch(ks->KeyringByName(keyringname)->KeyAt(i)->Purpose())
+        switch(key->Purpose())
         {
             case B_KEY_PURPOSE_GENERIC:
                 purpose = B_TRANSLATE("Generic");
@@ -350,29 +360,33 @@ void KeyringView::_InitAppData(KeystoreImp* ks)
 
         applistview->AddRow(row);
     }
+
+    keylistview->ResizeAllColumnsToPreferred();
+    applistview->ResizeAllColumnsToPreferred();
 }
 
 void KeyringView::_CopyKey(KeystoreImp* ks)
 {
     BKeyStore keystore;
     const char* keyid = ((BStringField*)keylistview->CurrentSelection()->GetField(0))->String();
-    BKeyType type = ks->KeyringByName(keyringname)->KeyByIdentifier(keyid)->Type();
+    const char* secid = ((BStringField*)keylistview->CurrentSelection()->GetField(1))->String();
+    BKeyType type = ks->KeyringByName(keyringname)->KeyByIdentifier(keyid, secid)->Type();
 
     if(type == B_KEY_TYPE_PASSWORD) {
         BPasswordKey pwdkey;
-        keystore.GetKey(keyringname, type, keyid, pwdkey);
+        keystore.GetKey(keyringname, type, keyid, secid, false, pwdkey);
         _CopyData(ks, keylistview, (const uint8*)pwdkey.Password());
     }
     else {
         BKey key;
-        keystore.GetKey(keyringname, type, keyid, key);
+        keystore.GetKey(keyringname, type, keyid, secid, false, key);
         _CopyData(ks, keylistview, key.Data());
     }
 }
 
-void KeyringView::_RemoveKey(KeystoreImp* ks, const char* _id)
+void KeyringView::_RemoveKey(KeystoreImp* ks, const char* id, const char* sec)
 {
-    KeyImp* key = ks->KeyringByName(keyringname)->KeyByIdentifier(_id);
+    KeyImp* key = ks->KeyringByName(keyringname)->KeyByIdentifier(id, sec);
     if(!key) {
         fprintf(stderr, "Error: a non-existing key was targeted.\n");
         return;
@@ -381,6 +395,7 @@ void KeyringView::_RemoveKey(KeystoreImp* ks, const char* _id)
     BMessage request(I_KEY_REMOVE);
     request.AddString(kConfigKeyring, keyringname);
     request.AddString(kConfigKeyName, key->Identifier());
+    request.AddString(kConfigKeyAltName, key->SecondaryIdentifier());
     Window()->PostMessage(&request);
 }
 

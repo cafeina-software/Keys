@@ -46,6 +46,21 @@ void BListViewEx::AttachedToWindow()
     itemmenu->SetTargetForItems(Window());
 }
 
+void BListViewEx::KeyDown(const char* bytes, int32 numBytes)
+{
+    if(numBytes == 1 && bytes[0] == B_DELETE) {
+        BListItem* item = ItemAt(CurrentSelection());
+        if(IsFocus() && item && IsItemSelected(IndexOf(item))) {
+            BMessage request(LVX_DELETE_REQUESTED);
+            request.AddPointer("origin", this);
+            request.AddPointer("item_to_delete", item);
+            Window()->PostMessage(&request);
+        }
+    }
+    else
+        BListView::KeyDown(bytes, numBytes);
+}
+
 void BListViewEx::MouseDown(BPoint where)
 {
     uint32 buttons;

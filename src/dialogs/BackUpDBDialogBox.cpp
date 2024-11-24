@@ -24,14 +24,14 @@ static struct BackUpMethod {
         B_TRANSLATE("Creates a simple copy of the keystore database.\nIt is not "
         "encrypted and anyone with access to the file could read its contents.")
     }
-#if defined(USE_OPENSSL)
+// #if defined(USE_OPENSSL)
     ,
     {
         'ssl ', B_TRANSLATE("Encrypted copy"),
         B_TRANSLATE("Creates an encrypted copy of the keystore database.\nOnce "
         "created, it can only be read by decrypting it with the proper passphrase.")
     }
-#endif
+// #endif
 };
 
 BackUpDBDialogBox::BackUpDBDialogBox(BWindow* parent, BRect frame)
@@ -43,13 +43,13 @@ BackUpDBDialogBox::BackUpDBDialogBox(BWindow* parent, BRect frame)
     fPumKind = new BPopUpMenu("pum_kind");
     for(uint32 i = 0; i < sizeof(methods) / sizeof(methods[0]); i++)
         fPumKind->AddItem(new BMenuItem(methods[i].title, new BMessage(methods[i].what)));
-    fMfKind = new BMenuField("mf_kind", "Kind", fPumKind);
+    fMfKind = new BMenuField("mf_kind", B_TRANSLATE("Kind"), fPumKind);
     fSvMthdDescription = new BStringView("sv_mthddesc", "");
-    fTcPassword = new BTextControl("tc_pass", "Password", "", new BMessage(BKP_PASSWORD));
+    fTcPassword = new BTextControl("tc_pass", B_TRANSLATE("Password"), "", new BMessage(BKP_PASSWORD));
     fTcPassword->TextView()->HideTyping(true);
     fTcPassword->SetModificationMessage(new BMessage(BKP_MODIFIED));
-    fBtSave = new BButton("bt_save", "Back up", new BMessage(BKP_SAVE));
-    fBtCancel = new BButton("bt_cancel", "Cancel", new BMessage(BKP_CANCEL));
+    fBtSave = new BButton("bt_save", B_TRANSLATE("Back up"), new BMessage(BKP_SAVE));
+    fBtCancel = new BButton("bt_cancel", B_TRANSLATE("Cancel"), new BMessage(BKP_CANCEL));
     BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
         .AddGroup(B_VERTICAL)
             .SetInsets(B_USE_WINDOW_INSETS, B_USE_WINDOW_INSETS, B_USE_WINDOW_INSETS, B_USE_SMALL_INSETS)
@@ -65,8 +65,9 @@ BackUpDBDialogBox::BackUpDBDialogBox(BWindow* parent, BRect frame)
             .Add(fBtCancel)
         .End()
     .End();
-    fTcPassword->Hide();
+
     fMfKind->Menu()->FindItem(BKP_MODE_COPY)->SetMarked(true);
+    fTcPassword->SetEnabled(!fMfKind->Menu()->FindItem(BKP_MODE_COPY)->IsMarked());
     fSvMthdDescription->SetText(B_TRANSLATE("Creates a simple copy of the keystore database.\n"
         "It is not encrypted and anyone with access to the file could read its contents."));
     CenterIn(fParent->Frame());
@@ -81,9 +82,9 @@ void BackUpDBDialogBox::MessageReceived(BMessage* msg)
 {
     switch(msg->what)
     {
-#if defined(USE_OPENSSL)
+// #if defined(USE_OPENSSL)
         case BKP_MODE_SSL:
-#endif
+// #endif
         case BKP_MODE_COPY:
         {
             int i = 0;
@@ -93,11 +94,9 @@ void BackUpDBDialogBox::MessageReceived(BMessage* msg)
                 fKind = msg->what;
                 fSvMthdDescription->SetText(methods[i].description);
                 if(msg->what == BKP_MODE_COPY) {
-                    fTcPassword->Hide();
                     fTcPassword->SetText("");
-                } else {
-                    fTcPassword->Show();
                 }
+                fTcPassword->SetEnabled(!fMfKind->Menu()->FindItem(BKP_MODE_COPY)->IsMarked());
                 fBtSave->SetEnabled(fMfKind->Menu()->FindItem(BKP_MODE_COPY)->IsMarked() ||
                     (!fMfKind->Menu()->FindItem(BKP_MODE_COPY)->IsMarked() && fTcPassword->TextLength() > 0));
             }

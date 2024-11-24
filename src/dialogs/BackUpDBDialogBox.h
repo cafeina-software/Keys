@@ -11,6 +11,7 @@
 #include <TextControl.h>
 #include <Window.h>
 #include <SupportDefs.h>
+#include "../KeysDefs.h"
 
 #if defined(USE_OPENSSL)
 #define BKP_MODE_SSL    'ssl '

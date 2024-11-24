@@ -7,11 +7,13 @@
 
 #include <InterfaceKit.h>
 #include <Key.h>
+#include <private/interface/Spinner.h>
 #include "../data/KeystoreImp.h"
 
 #define AKDLG_KEY_ID        'k1id'
 #define AKDLG_KEY_ID2       'k2id'
 #define AKDLG_KEY_DATA      'kdat'
+#define AKDLG_KEY_DATA_GEN  'gen0'
 #define AKDLG_KEY_TYP_GEN   'tgen'
 #define AKDLG_KEY_TYP_PWD   'tpwd'
 #define AKDLG_KEY_TYP_CRT   'tcrt'
@@ -23,13 +25,20 @@
 #define AKDLG_KEY_MODIFIED  'modi'
 #define AKDLG_KEY_SAVE      'save'
 #define AKDLG_KEY_CANCEL    'cncl'
+#define AKDLG_KEY_LENGTH    'ilen'
 #define I_KEY_ADD           'iaka'
+
+enum AKDlgModel {
+    AKDM_STANDARD = 0,
+    AKDM_UNLOCK_KEY,
+    AKDM_KEY_GEN
+};
 
 class AddKeyDialogBox : public BWindow
 {
 public:
-                  AddKeyDialogBox(BWindow* parent, BRect frame, KeystoreImp* _ks,
-                    const char* keyringname, BKeyType desiredType, BView* view);
+                  AddKeyDialogBox(BWindow* parent, BRect frame, //KeystoreImp* _ks,
+                    const char* keyringname, BKeyType desiredType, BView* view, AKDlgModel dialogType = AKDM_STANDARD);
     virtual void  MessageReceived(BMessage* msg);
     virtual bool  QuitRequested();
 private:
@@ -38,18 +47,22 @@ private:
     bool          _IsAbleToSave();
     void          _UpdateStatusBar(BStatusBar* bar, const char* pwd);
 private:
-    BTextControl *tcIdentifier,
-                 *tcSecIdentifier,
-                 *tcData;
-    BMenuField   *mfType,
-                 *mfPurpose;
-    BMenu        *pumType,
-                 *pumPurpose;
-    BButton      *saveKeyButton,
-                 *cancelButton;
-    BStatusBar   *sbPwdStrength;
+    BButton      *fBtSave,
+                 *fBtKeyGen,
+                 *fBtCancel;
+    BMenuField   *fMfType,
+                 *fMfPurpose;
+    BPopUpMenu   *fPumType,
+                 *fPumPurpose;
+    BSpinner     *fSpnLength;
+    BStatusBar   *fSbPwdStrength;
+    BStringView  *fSvIntro,
+                 *fSvSpnInfo;
+    BTextControl *fTcIdentifier,
+                 *fTcSecIdentifier,
+                 *fTcData;
 
-    KeystoreImp  *ks;
+//    KeystoreImp  *ks;
     const char   *keyring;
     BString       currentId,
                   currentId2,
@@ -59,6 +72,7 @@ private:
 
     BWindow      *parentWindow;
     BView        *containerView;
+    AKDlgModel    dialogModel;
 };
 
 #endif /* __ADDKEY_DLG_H_ */

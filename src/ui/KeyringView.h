@@ -32,11 +32,11 @@ public:
 
     virtual void  Update(const void* data = NULL);
 private:
-    void          _InitAppData(KeystoreImp* ks);
+    void          _InitAppData(/*KeystoreImp* ks*/);
     void          _CopyKey(KeystoreImp* ks);
     void          _CopyAppSignature(KeystoreImp* ks);
     void          _CopyData(KeystoreImp* ks, BColumnListView* owner, const uint8* data);
-    void          _RemoveKey(KeystoreImp* ks, const char* _id);
+    void          _RemoveKey(KeystoreImp* ks, const char* id, const char* sec);
     void          _RemoveApp(KeystoreImp* ks, const char* _app);
     int           _MaxLength(BColumnListView* view, int fieldid, int defValue, KeystoreImp* ks, bool iskeytype);
 private:

@@ -46,6 +46,9 @@ SRCS = 	src/main.cpp                           \
 		src/ui/KeyringView.cpp                 \
         src/ui/ListViewEx.cpp                  \
 
+ifeq ($(strip $(USE_OPENSSL)),)
+SRCS += src/data/CryptoUtils.cpp
+endif
 
 #	Specify the resource definition files to use. Full or relative paths can be
 #	used.
@@ -73,6 +76,9 @@ RSRCS =
 #		you need to specify the path to the library and it's name.
 #		(e.g. for mylib.a, specify "mylib.a" or "path/mylib.a")
 LIBS = $(STDCPPLIBS) be columnlistview localestub shared tracker
+ifeq ($(strip $(USE_OPENSSL)),)
+    LIBS += crypto
+endif
 
 #	Specify additional paths to directories following the standard libXXX.so
 #	or libXXX.a naming scheme. You can specify full paths or paths relative
@@ -84,7 +90,7 @@ LIBPATHS =
 #	Additional paths to look for system headers. These use the form
 #	"#include <header>". Directories that contain the files in SRCS are
 #	NOT auto-included here.
-SYSTEM_INCLUDE_PATHS =
+SYSTEM_INCLUDE_PATHS = $(shell findpaths -r "makefile_engine" B_FIND_PATH_DEVELOP_DIRECTORY headers/private/interface)
 
 #	Additional paths paths to look for local headers. These use the form
 #	#include "header". Directories that contain the files in SRCS are
@@ -115,15 +121,15 @@ DEFINES =
 
 #	Specify the warning level. Either NONE (suppress all warnings),
 #	ALL (enable all warnings), or leave blank (enable default warnings).
-WARNINGS =
+WARNINGS = ALL
 
 #	With image symbols, stack crawls in the debugger are meaningful.
 #	If set to "TRUE", symbols will be created.
-SYMBOLS :=
+SYMBOLS := TRUE
 
 #	Includes debug information, which allows the binary to be debugged easily.
 #	If set to "TRUE", debug info will be created.
-DEBUGGER :=
+DEBUGGER := TRUE
 
 #	Specify any additional compiler flags to be used.
 COMPILER_FLAGS =

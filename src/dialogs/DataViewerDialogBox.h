@@ -15,7 +15,8 @@ class DataViewerDialogBox : public BWindow
 {
 public:
                   DataViewerDialogBox(BWindow* parent, BRect frame,
-                    KeystoreImp* imp, const char* keyring, const char* keyid);
+                    KeystoreImp* imp, const char* keyring, const char* keyid,
+                    const char* secid = "");
     virtual void  MessageReceived(BMessage* msg);
 private:
     void          _InitUIData();
@@ -27,7 +28,8 @@ private:
 private:
     KeystoreImp  *fImp;
     const char   *fKeyringName,
-                 *fKeyId;
+                 *fKeyId,
+                 *fKeySecondaryId;
 
     BButton      *closeButton;
     BTextControl *tcIdentifier;

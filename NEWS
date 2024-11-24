@@ -6,8 +6,9 @@ to perform some additional functions.
 
 * New features:
 
-- (keystore, testing): option to make a plain backup of the database. This is
-   a simple snapshot copy of the database at the time it was performed.
+- (keystore db, testing): option to make a plain backup of the database. This is
+   a simple or encrypted snapshot copy of the database at the time it was performed.
+- (keystore db, testing): option to restore a previously made backup.
 - (keystore, testing): option to wipe the database. This will delete all the keyrings
    other than "Master" and all the keys.
 - (keyrings): import key. Option to import a previously exported key

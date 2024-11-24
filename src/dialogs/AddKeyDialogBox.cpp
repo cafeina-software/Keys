@@ -5,9 +5,9 @@
 #include <Application.h>
 #include <Catalog.h>
 #include <KeyStore.h>
+#include <private/interface/Spinner.h>
 #include <pwd.h>
 #include <unistd.h>
-#include <cstdio>
 #include <ctime>
 #include "AddKeyDialogBox.h"
 #include "../KeysDefs.h"
@@ -17,11 +17,11 @@
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Add key dialog box"
 
-AddKeyDialogBox::AddKeyDialogBox(BWindow* parent, BRect frame, KeystoreImp* _ks,
-    const char* keyringname, BKeyType desiredType, BView* view)
-: BWindow(frame, B_TRANSLATE("Add new key"), B_FLOATING_WINDOW_LOOK, B_FLOATING_ALL_WINDOW_FEEL,
+AddKeyDialogBox::AddKeyDialogBox(BWindow* parent, BRect frame,
+    const char* keyringname, BKeyType desiredType, BView* view, AKDlgModel dialogType)
+: BWindow(frame, "", B_FLOATING_WINDOW_LOOK, B_FLOATING_ALL_WINDOW_FEEL,
     B_NOT_ZOOMABLE|B_NOT_RESIZABLE|B_AUTO_UPDATE_SIZE_LIMITS),
-    ks(_ks),
+    //ks(_ks),
     keyring(keyringname),
     currentId(""),
     currentId2(""),
@@ -29,77 +29,114 @@ AddKeyDialogBox::AddKeyDialogBox(BWindow* parent, BRect frame, KeystoreImp* _ks,
     currentPurpose(B_KEY_PURPOSE_ANY),
     currentDesiredType(desiredType),
     parentWindow(parent),
-    containerView(view)
+    containerView(view),
+    dialogModel(dialogType)
 {
-    BString desc(B_TRANSLATE("Adding key to \"%desc%\" keyring."));
-    desc.ReplaceAll("%desc%", keyring);
-    BStringView* intro = new BStringView(NULL, desc);
-
-    pumType = new BPopUpMenu(B_TRANSLATE("Type of key"), B_ITEMS_IN_COLUMN);
-    BLayoutBuilder::Menu<>(pumType)
+    fPumType = new BPopUpMenu(B_TRANSLATE("Type of key"), B_ITEMS_IN_COLUMN);
+    BLayoutBuilder::Menu<>(fPumType)
         .AddItem(B_TRANSLATE("Generic key"), AKDLG_KEY_TYP_GEN)
         .AddItem(B_TRANSLATE("Password key"), AKDLG_KEY_TYP_PWD)
         .AddItem(B_TRANSLATE("Certificate key"), AKDLG_KEY_TYP_CRT)
     .End();
-    mfType = new BMenuField(B_TRANSLATE("Type"), pumType);
-    mfType->Menu()->FindItem(AKDLG_KEY_TYP_CRT)->SetEnabled(false);
-    if(currentDesiredType == B_KEY_TYPE_PASSWORD)
-        mfType->Menu()->FindItem(AKDLG_KEY_TYP_PWD)->SetMarked(true);
-    else if(currentDesiredType == B_KEY_TYPE_GENERIC)
-        mfType->Menu()->FindItem(AKDLG_KEY_TYP_GEN)->SetMarked(true);
 
-    tcIdentifier = new BTextControl("tc_id", B_TRANSLATE("Identifier"), currentId,
-        new BMessage(AKDLG_KEY_ID));
-    tcIdentifier->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
-    tcSecIdentifier = new BTextControl("tc_id2",
-        B_TRANSLATE("Secondary identifier (optional)"),
-        currentId2, new BMessage(AKDLG_KEY_ID2));
-    tcSecIdentifier->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
-    tcData = new BTextControl("tc_key", B_TRANSLATE("Key"), currentData,
-        new BMessage(AKDLG_KEY_DATA));
-    tcData->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
-    tcData->TextView()->HideTyping(true);
-    sbPwdStrength = new BStatusBar("sb_ent");
-    sbPwdStrength->SetBarHeight(tcData->Bounds().Height() / 2.0f);
-    sbPwdStrength->SetMaxValue(1.0f);
-
-    pumPurpose = new BPopUpMenu(B_TRANSLATE("Select the purpose"), B_ITEMS_IN_COLUMN);
-    BLayoutBuilder::Menu<>(pumPurpose)
+    fPumPurpose = new BPopUpMenu(B_TRANSLATE("Select the purpose"), B_ITEMS_IN_COLUMN);
+    BLayoutBuilder::Menu<>(fPumPurpose)
         .AddItem(B_TRANSLATE("Generic"), AKDLG_KEY_PUR_GEN)
         .AddItem(B_TRANSLATE("Keyring"), AKDLG_KEY_PUR_KRN)
         .AddItem(B_TRANSLATE("Web"), AKDLG_KEY_PUR_WEB)
         .AddItem(B_TRANSLATE("Network"), AKDLG_KEY_PUR_NET)
         .AddItem(B_TRANSLATE("Volume"), AKDLG_KEY_PUR_VOL)
     .End();
-    mfPurpose = new BMenuField(B_TRANSLATE("Purpose"), pumPurpose);
-
-    saveKeyButton = new BButton("bt_save", B_TRANSLATE("Save"), new BMessage(AKDLG_KEY_SAVE));
-    saveKeyButton->SetEnabled(false);
-    cancelButton = new BButton("bt_cancel", B_TRANSLATE("Cancel"), new BMessage(AKDLG_KEY_CANCEL));
 
     BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
         .SetInsets(0)
         .AddGroup(B_HORIZONTAL)
             .SetInsets(B_USE_WINDOW_INSETS)
-            .Add(intro)
+            .Add(fSvIntro = new BStringView("sv_intro", ""))
         .End()
         .AddGrid()
             .SetInsets(B_USE_WINDOW_INSETS)
-            .AddMenuField(mfType, 0, 0)
-            .AddMenuField(mfPurpose, 0, 1)
-            .AddTextControl(tcIdentifier, 0, 2)
-            .AddTextControl(tcSecIdentifier, 0, 3)
-            .AddTextControl(tcData, 0, 4)
-            .Add(sbPwdStrength, 1, 5)
+            .AddMenuField(fMfType = new BMenuField(B_TRANSLATE("Type"), fPumType), 0, 0)
+            .AddMenuField(fMfPurpose = new BMenuField(B_TRANSLATE("Purpose"), fPumPurpose), 0, 1)
+            .AddTextControl(fTcIdentifier = new BTextControl("tc_id", B_TRANSLATE("Identifier"), "", new BMessage(AKDLG_KEY_ID)), 0, 2)
+            .AddTextControl(fTcSecIdentifier = new BTextControl("tc_id2", B_TRANSLATE("Secondary identifier (optional)"), "", new BMessage(AKDLG_KEY_ID2)), 0, 3)
+            .AddTextControl(fTcData = new BTextControl("tc_key", B_TRANSLATE("Key"), "", new BMessage(AKDLG_KEY_DATA)), 0, 4)
+            .AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 0, 5)
+                .AddGlue()
+                .Add(fBtKeyGen = new BButton("bt_keygen", B_TRANSLATE("Generate"), new BMessage(AKDLG_KEY_DATA_GEN)))
+            .End()
+            .Add(fSbPwdStrength = new BStatusBar("sb_ent"), 1, 5)
+            .Add(fSvSpnInfo = new BStringView("sv_spninfo", B_TRANSLATE("Length")), 0, 6)
+            .Add(fSpnLength = new BSpinner("sp_len", NULL, new BMessage(AKDLG_KEY_LENGTH)), 1, 6)
         .End()
         .Add(new BSeparatorView())
         .AddGroup(B_HORIZONTAL)
             .SetInsets(B_USE_WINDOW_INSETS)
             .AddGlue()
-            .Add(cancelButton)
-            .Add(saveKeyButton)
+            .Add(fBtSave = new BButton("bt_save", B_TRANSLATE("Save"), new BMessage(AKDLG_KEY_SAVE)))
+            .Add(fBtCancel = new BButton("bt_cancel", B_TRANSLATE("Cancel"), new BMessage(AKDLG_KEY_CANCEL)))
         .End()
     .End();
+
+    fMfType->Menu()->FindItem(AKDLG_KEY_TYP_CRT)->SetEnabled(false);
+    if(currentDesiredType == B_KEY_TYPE_PASSWORD)
+        fMfType->Menu()->FindItem(AKDLG_KEY_TYP_PWD)->SetMarked(true);
+    else if(currentDesiredType == B_KEY_TYPE_GENERIC)
+        fMfType->Menu()->FindItem(AKDLG_KEY_TYP_GEN)->SetMarked(true);
+    fTcIdentifier->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
+    fTcSecIdentifier->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
+    fTcData->SetModificationMessage(new BMessage(AKDLG_KEY_MODIFIED));
+    fTcData->TextView()->HideTyping(true);
+    float sz = fTcData->Frame().Height();
+    fBtKeyGen->SetExplicitMaxSize(BSize(sz * 3, sz));
+    fSbPwdStrength->SetBarHeight(fTcData->Bounds().Height() / 2.0f);
+    fSbPwdStrength->SetMaxValue(1.0f);
+    fBtSave->SetEnabled(_IsAbleToSave());
+
+    switch(dialogModel) {
+        case AKDM_STANDARD:
+        {
+            SetTitle(B_TRANSLATE("Add new key"));
+
+            BString desc(B_TRANSLATE("Adding key to \"%desc%\" keyring."));
+            desc.ReplaceAll("%desc%", keyring);
+            fSvIntro->SetText(desc.String());
+
+            fSvSpnInfo->Hide();
+            fSpnLength->Hide();
+            break;
+        }
+        case AKDM_UNLOCK_KEY:
+        {
+            SetTitle(B_TRANSLATE("Set unlock key for keyring"));
+
+            BString desc(B_TRANSLATE("Adding unlock key to \"%desc%\" keyring."));
+            desc.ReplaceAll("%desc%", keyring);
+            fSvIntro->SetText(desc.String());
+
+            fMfType->Hide();
+            fMfPurpose->Hide();
+            fTcIdentifier->Hide();
+            fTcSecIdentifier->Hide();
+            fSvSpnInfo->Hide();
+            fSpnLength->Hide();
+            break;
+        }
+        case AKDM_KEY_GEN:
+        {
+            SetTitle(B_TRANSLATE("Generate new key"));
+
+            BString desc(B_TRANSLATE("Generating key for \"%desc%\" keyring."));
+            desc.ReplaceAll("%desc%", keyring);
+            fSvIntro->SetText(desc.String());
+
+            fMfType->Hide();
+            fTcData->Hide();
+            fSbPwdStrength->Hide();
+            fBtKeyGen->Hide();
+            break;
+        }
+    }
 
     CenterIn(parentWindow->Frame());
 }
@@ -109,48 +146,62 @@ void AddKeyDialogBox::MessageReceived(BMessage* msg)
     switch (msg->what)
     {
         case AKDLG_KEY_ID:
-            tcIdentifier->MarkAsInvalid(_IsValid(BString(tcIdentifier->Text())) != B_OK);
+            fTcIdentifier->MarkAsInvalid(fTcIdentifier->TextLength() == 0);
             break;
         case AKDLG_KEY_ID2:
             // tcSecIdentifier->MarkAsInvalid(false);
             break;
         case AKDLG_KEY_DATA:
-            tcData->MarkAsInvalid(_IsValid(BString(tcData->Text())) != B_OK);
+            fTcData->MarkAsInvalid(fTcData->TextLength() == 0);
             break;
+        case AKDLG_KEY_DATA_GEN:
+        {
+            BPasswordKey dummy("", currentPurpose, fTcData->Text());
+            status_t status = GeneratePassword(dummy, 24, 0);
+            if(status == B_OK) {
+                fTcData->SetText(dummy.Password());
+                _UpdateStatusBar(fSbPwdStrength, fTcData->Text());
+                fBtSave->SetEnabled(_IsAbleToSave());
+            }
+            break;
+        }
         case AKDLG_KEY_MODIFIED:
-            currentId = tcIdentifier->Text();
-            currentId2 = tcSecIdentifier->Text();
-            currentData = tcData->Text();
-            _UpdateStatusBar(sbPwdStrength, tcData->Text());
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            // currentId = fTcIdentifier->Text();
+            // currentId2 = fTcSecIdentifier->Text();
+            // currentData = fTcData->Text();
+            _UpdateStatusBar(fSbPwdStrength, fTcData->Text());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_TYP_GEN:
             currentDesiredType = B_KEY_TYPE_GENERIC;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_TYP_PWD:
             currentDesiredType = B_KEY_TYPE_PASSWORD;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_PUR_GEN:
             currentPurpose = B_KEY_PURPOSE_GENERIC;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_PUR_KRN:
             currentPurpose = B_KEY_PURPOSE_KEYRING;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_PUR_WEB:
             currentPurpose = B_KEY_PURPOSE_WEB;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_PUR_NET:
             currentPurpose = B_KEY_PURPOSE_NETWORK;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_PUR_VOL:
             currentPurpose = B_KEY_PURPOSE_VOLUME;
-            saveKeyButton->SetEnabled(_IsAbleToSave());
+            fBtSave->SetEnabled(_IsAbleToSave());
+            break;
+        case AKDLG_KEY_LENGTH:
+            fBtSave->SetEnabled(_IsAbleToSave());
             break;
         case AKDLG_KEY_SAVE:
             if(_IsAbleToSave()) {
@@ -183,21 +234,35 @@ status_t AddKeyDialogBox::_IsValid(BString info)
 
 bool AddKeyDialogBox::_IsAbleToSave()
 {
-    return _IsValid(currentId)       == B_OK           &&
-           _IsValid(currentData)     == B_OK           &&
-           currentDesiredType        >  B_KEY_TYPE_ANY &&
-           currentPurpose            >  B_KEY_PURPOSE_ANY;
+    switch(dialogModel) {
+        case AKDM_UNLOCK_KEY:
+            return fTcData->TextLength()       > 0;
+        case AKDM_KEY_GEN:
+            return currentPurpose              > B_KEY_PURPOSE_ANY &&
+                   fTcIdentifier->TextLength() > 0                 &&
+                   fSpnLength->Value()         > 1;
+        case AKDM_STANDARD:
+        default:
+            return fTcIdentifier->TextLength() > 0                 &&
+                   fTcData->TextLength()       > 0                 &&
+                   currentDesiredType          > B_KEY_TYPE_ANY    &&
+                   currentPurpose              > B_KEY_PURPOSE_ANY;
+    }
 }
 
 void AddKeyDialogBox::_SaveKey()
 {
     BMessage request(I_KEY_ADD);
-    request.AddString(kConfigKeyring, keyring);
+    request.AddUInt32(kConfigWhat, dialogModel == AKDM_UNLOCK_KEY ? M_KEYRING_SET_LOCKKEY :
+        dialogModel == AKDM_KEY_GEN ? M_KEY_GENERATE_PASSWORD : M_KEY_CREATE);
     request.AddPointer(kConfigWho, containerView);
-    request.AddString(kConfigKeyName, currentId);
-    request.AddString(kConfigKeyAltName, currentId2);
-    request.AddUInt32(kConfigKeyType, (uint32)currentDesiredType);
-    request.AddUInt32(kConfigKeyPurpose, (uint32)currentPurpose);
+    request.AddString(kConfigKeyring, keyring);
+    request.AddString(kConfigKeyName, dialogModel == AKDM_UNLOCK_KEY ? "" : fTcIdentifier->Text());
+    request.AddString(kConfigKeyAltName, dialogModel == AKDM_UNLOCK_KEY ? "" : fTcSecIdentifier->Text());
+    request.AddUInt32(kConfigKeyType, dialogModel != AKDM_STANDARD ? (uint32)B_KEY_TYPE_PASSWORD : (uint32)currentDesiredType);
+    request.AddUInt32(kConfigKeyPurpose,dialogModel == AKDM_UNLOCK_KEY ? (uint32)B_KEY_PURPOSE_KEYRING : (uint32)currentPurpose);
+    if(dialogModel == AKDM_KEY_GEN)
+        request.AddUInt32(kConfigKeyGenLength, (uint32)fSpnLength->Value());
     request.AddInt64(kConfigKeyCreated, std::time(nullptr)); // not used by the API
     BString owner;
     passwd* pwd = getpwuid(geteuid());
@@ -208,10 +273,9 @@ void AddKeyDialogBox::_SaveKey()
         bad data (eating up the entry name of the next object added). Some kind
         of bug or just bad implementation? */
     request.AddData(kConfigKeyData, B_RAW_TYPE,
-        reinterpret_cast<const void*>(currentData.String()),
-        static_cast<ssize_t>(strlen(currentData.String())));
+        dialogModel == AKDM_KEY_GEN ? "" : reinterpret_cast<const void*>(fTcData->Text()),
+        dialogModel == AKDM_KEY_GEN ? 0 : static_cast<ssize_t>(strlen(fTcData->Text())));
     parentWindow->PostMessage(&request, parentWindow);
-
 }
 
 void AddKeyDialogBox::_UpdateStatusBar(BStatusBar* bar, const char* pwd)

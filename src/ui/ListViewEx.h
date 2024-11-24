@@ -9,6 +9,8 @@
 #include <SupportDefs.h>
 #include <ListView.h>
 
+#define LVX_DELETE_REQUESTED 'xdel'
+
 class BListViewEx : public BListView
 {
 public:
@@ -28,6 +30,7 @@ public:
 
     virtual	       ~BListViewEx();
     virtual void    AttachedToWindow();
+    virtual void    KeyDown(const char* bytes, int32 numBytes);
     virtual void    MouseDown(BPoint where);
     virtual void    MessageReceived(BMessage* msg);
 private:

@@ -7,14 +7,23 @@
 #include <cstdio>
 #include "KeystoreImp.h"
 
+/* Operation modes for read-write methods:
+ *  + model-only: only works on the model ADT
+ *  + model-and-database: works both on model and database
+ *  + model-opt-database: works on model, optionally on database
+ *  + database-only: works on database only
+ */
+
 // #pragma mark - KeyImp
 
+// ctor: model-only
 KeyImp::KeyImp(KeyringImp* parent)
 : fParent(parent)
 {
     SetTo(B_KEY_PURPOSE_GENERIC, B_KEY_TYPE_GENERIC, "", nullptr, 0, "");
 }
 
+// ctor2: model-only
 KeyImp::KeyImp(KeyringImp* parent, BKey key)
 : fParent(parent)
 {
@@ -22,6 +31,7 @@ KeyImp::KeyImp(KeyringImp* parent, BKey key)
         key.SecondaryIdentifier(), key.CreationTime(), key.Owner());
 }
 
+// ctor3: model-only
 KeyImp::KeyImp(KeyringImp* parent, BKeyPurpose p, BKeyType t,
     const char* id, const char* secid, bigtime_t dc, const char* owner)
 : fParent(parent)
@@ -29,6 +39,7 @@ KeyImp::KeyImp(KeyringImp* parent, BKeyPurpose p, BKeyType t,
     SetTo(p, t, id, secid, dc, owner);
 }
 
+// SetTo: model-only
 void KeyImp::SetTo(BKeyPurpose p, BKeyType t,
     const char* id, const char* secid, bigtime_t dc, const char* owner)
 {
@@ -78,17 +89,20 @@ const char* KeyImp::Owner()
 void KeyImp::Data(const void* ptr, size_t* len)
 {
     BKey key;
-    BKeyStore().GetKey(fParent->Identifier(), Type(), Identifier(), key);
+    BKeyStore().GetKey(fParent->Identifier(), Type(), Identifier(),
+        SecondaryIdentifier(), false, key);
     ptr = reinterpret_cast<const void*>(key.Data());
     *len = key.DataLength();
 }
 
 void KeyImp::PrintToStream()
 {
-    printf("\t\tKey: %s. parent(%s), type(%d), purpose(%d)\n",
-        Identifier(), Parent()->Identifier(), Type(), Purpose());
+    printf("\t\tKey: %s, %s. parent(%s), type(%d), purpose(%d)\n",
+        Identifier(), strlen(SecondaryIdentifier()) > 0 ? SecondaryIdentifier() :
+        "[no secondary id.]" , Parent()->Identifier(), Type(), Purpose());
 }
 
+// Export: database-only
 status_t KeyImp::Export(BMessage* archive)
 {
     switch(Type())
@@ -96,14 +110,16 @@ status_t KeyImp::Export(BMessage* archive)
         case B_KEY_TYPE_GENERIC:
         {
             BKey key;
-            if(BKeyStore().GetKey(fParent->Identifier(), B_KEY_TYPE_GENERIC, Identifier(), key) != B_OK)
+            if(BKeyStore().GetKey(fParent->Identifier(), B_KEY_TYPE_GENERIC,
+            Identifier(), SecondaryIdentifier(), false, key) != B_OK)
                 return B_ERROR;
             return key.Flatten(*archive);
         }
         case B_KEY_TYPE_PASSWORD:
         {
             BPasswordKey pwdkey;
-            if(BKeyStore().GetKey(fParent->Identifier(), B_KEY_TYPE_PASSWORD, Identifier(), pwdkey) != B_OK)
+            if(BKeyStore().GetKey(fParent->Identifier(), B_KEY_TYPE_PASSWORD,
+            Identifier(), SecondaryIdentifier(), false, pwdkey) != B_OK)
                 return B_ERROR;
             return pwdkey.Flatten(*archive);
         }
@@ -167,16 +183,19 @@ const char* KeyringImp::Identifier()
     return fName.String();
 }
 
+// IsUnlocked: database-only
 bool KeyringImp::IsUnlocked()
 {
     return BKeyStore().IsKeyringUnlocked(fName.String());
 }
 
+// Lock: database-only
 status_t KeyringImp::Lock()
 {
     return BKeyStore().LockKeyring(fName.String());
 }
 
+// Unlock: none
 status_t KeyringImp::Unlock()
 {
     return B_NOT_SUPPORTED;
@@ -205,6 +224,7 @@ status_t KeyringImp::RemoveUnlockKey()
     return status;
 }
 
+// AddKey: model-opt-database
 status_t KeyringImp::AddKey(BKeyPurpose p, BKeyType t, const char* id,
     const char* secid, const uint8* data, size_t length, bool createInDb)
 {
@@ -234,6 +254,7 @@ status_t KeyringImp::AddKey(BKeyPurpose p, BKeyType t, const char* id,
     return status;
 }
 
+// ImportKey: model-and-database
 status_t KeyringImp::ImportKey(BMessage* archive)
 {
     BKeyType type;
@@ -249,6 +270,7 @@ status_t KeyringImp::ImportKey(BMessage* archive)
                 return status;
             if((status = BKeyStore().AddKey(Identifier(), key)) != B_OK)
                 return status;
+            // The following addition is model-only because it has just been directly added to db
             AddKey(key.Purpose(), key.Type(), key.Identifier(), key.SecondaryIdentifier());
             return B_OK;
         }
@@ -259,6 +281,7 @@ status_t KeyringImp::ImportKey(BMessage* archive)
                 return status;
             if((status = BKeyStore().AddKey(Identifier(), key)) != B_OK)
                 return status;
+            // The following addition is model-only because it has just been directly added to db
             AddKey(key.Purpose(), key.Type(), key.Identifier(), key.SecondaryIdentifier());
             return B_OK;
         }
@@ -269,6 +292,7 @@ status_t KeyringImp::ImportKey(BMessage* archive)
     }
 }
 
+// RemoveKey: model-opt-database
 status_t KeyringImp::RemoveKey(const char* id, bool deleteInDb)
 {
     status_t status = B_OK;
@@ -306,6 +330,45 @@ status_t KeyringImp::RemoveKey(const char* id, bool deleteInDb)
     return status;
 }
 
+// RemoveKey: model-opt-database
+status_t KeyringImp::RemoveKey(const char* id, const char* secid, bool deleteInDb)
+{
+    status_t status = B_OK;
+    KeyImp* keyentry = FindInList2(fKeyList, id, secid);
+    if(!keyentry) // does not necessarily mean that the key does not exist
+        return B_ENTRY_NOT_FOUND;
+
+    if(deleteInDb) {
+        switch(keyentry->Type()) {
+            case B_KEY_TYPE_GENERIC: {
+                BKey key;
+                if((status = BKeyStore().GetKey(Identifier(), keyentry->Type(),
+                keyentry->Identifier(), keyentry->SecondaryIdentifier(), false,
+                key)) != B_OK)
+                    return status;
+                status = BKeyStore().RemoveKey(Identifier(), key);
+                break;
+            }
+            case B_KEY_TYPE_PASSWORD: {
+                BPasswordKey key;
+                if((status = BKeyStore().GetKey(Identifier(), keyentry->Type(),
+                keyentry->Identifier(), keyentry->SecondaryIdentifier(), false,
+                key)) != B_OK)
+                    return status;
+                status = BKeyStore().RemoveKey(Identifier(), key);
+                break;
+            }
+            default:
+                return B_NOT_SUPPORTED;
+        }
+    }
+
+    if(status == B_OK)
+        fKeyList.RemoveItem(keyentry);
+
+    return status;
+}
+
 KeyImp* KeyringImp::KeyAt(int32 index)
 {
     return fKeyList.ItemAt(index);
@@ -313,7 +376,16 @@ KeyImp* KeyringImp::KeyAt(int32 index)
 
 KeyImp* KeyringImp::KeyByIdentifier(const char* id)
 {
-    return FindInList(fKeyList, id);
+    // return FindInList(fKeyList, id);
+    return FindInList2(fKeyList, id, "");
+}
+
+KeyImp* KeyringImp::KeyByIdentifier(const char* id, const char* secondary_id)
+{
+    if(!secondary_id)
+        secondary_id = "";
+
+    return FindInList2(fKeyList, id, secondary_id);
 }
 
 int32 KeyringImp::KeyCount(BKeyType type, BKeyPurpose purpose)
@@ -340,8 +412,11 @@ status_t KeyringImp::RemoveApplication(const char* signature, bool deleteInDb)
         status = BKeyStore().RemoveApplication(Identifier(), signature);
 
     ApplicationAccessImp* app = FindInList(fAppList, signature);
-    if(status == B_OK && app)
-        status = fAppList.RemoveItem(app);
+    if(status == B_OK && app) {
+        bool result = fAppList.RemoveItem(app);
+        if(result) status = B_OK;
+        else status = B_ERROR;
+    }
 
     return status;
 }
@@ -395,11 +470,15 @@ status_t KeystoreImp::AddKeyring(const char* name, bool createInDb)
 {
     status_t status = B_OK;
 
-    if(createInDb)
+    if(createInDb) {
         status = BKeyStore().AddKeyring(name);
+    }
 
-    if(status == B_OK)
-        status = fKeyringList.AddItem(new KeyringImp(this, name));
+    if(status == B_OK) {
+        bool result = fKeyringList.AddItem(new KeyringImp(this, name));
+        if(result) status = B_OK;
+        else status = B_ERROR;
+    }
 
     return status;
 }
@@ -452,6 +531,8 @@ bool KeystoreImp::IsEmpty()
 void KeystoreImp::Reset()
 {
     // Reset the data structure without touching the actual data on disk
-    for(int i = 0; i < fKeyringList.CountItems(); i++)
-        fKeyringList.RemoveItem(fKeyringList.ItemAt(i));
+    if(!IsEmpty()) {
+        for(int i = 0; i < fKeyringList.CountItems(); i++)
+            fKeyringList.RemoveItem(fKeyringList.ItemAt(i), true);
+    }
 }
