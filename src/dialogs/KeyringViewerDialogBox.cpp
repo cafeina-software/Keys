@@ -34,7 +34,7 @@ KeyringViewerDialogBox::KeyringViewerDialogBox(BWindow* parent, BRect frame, Key
                 .Add(fSvNameLabel = new BStringView("sv_name", B_TRANSLATE("Name")), 0, 0)
                 .Add(fTcName = new BTextControl("tc_name", NULL, "", NULL), 1, 0)
                 .Add(fSvLockedLabel = new BStringView("sv_lock", B_TRANSLATE("Status")), 0, 1)
-                .Add(fCbLocked = new BCheckBox("cb_lock", "Locked", NULL), 1, 1)
+                .Add(fCbLocked = new BCheckBox("cb_lock", B_TRANSLATE("Locked"), NULL), 1, 1)
             .End()
             .Add(new BSeparatorView())
             .AddGrid(B_USE_SMALL_SPACING, B_USE_SMALL_SPACING)

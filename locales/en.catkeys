@@ -1,29 +1,46 @@
-1	English	application/x.vnd.cafeapp.keystoremgmt	4170188105
+1	English	application/x.vnd.cafeapp.keystoremgmt	1494221969
 Quit	Main menu		Quit
+Creates a simple copy of the keystore database.\nIt is not encrypted and anyone with access to the file could read its contents.	Backupper dialog		Creates a simple copy of the keystore database.\nIt is not encrypted and anyone with access to the file could read its contents.
 Cancel	Add keyring dialog box		Cancel
 Web	Keyring view		Web
-Remove keyring	Main menu		Remove keyring
+Stop server	Main menu		Stop server
+0.1.0\tData model and messaging rework. More comprehensive API coverage. Bugfixes.	About box		0.1.0\tData model and messaging rework. More comprehensive API coverage. Bugfixes.
+Keystore server: execution.	Scripting properties		Keystore server: execution.
 Password key	Main menu		Password key
 Owner (*)	Data viewer dialog box		Owner (*)
 Do you want to remove the key \"%key%\" from this keyring?	Keyring view		Do you want to remove the key \"%key%\" from this keyring?
 Error	Add keyring dialog box		Error
+Do you want to delete all the keys from this keyring? This action cannot be undone.\n\nThe keyring will not be deleted, neither the applications access list.	Main window		Do you want to delete all the keys from this keyring? This action cannot be undone.\n\nThe keyring will not be deleted, neither the applications access list.
+Cancel	Add unlock key		Cancel
 Remove keyring	Main window		Remove keyring
+Keyring: deletion.	Scripting properties		Keyring: deletion.
+Lock keyring	Main menu		Lock keyring
+Add generic key…	Main menu		Add generic key…
 Key	Add key dialog box		Key
 Remove	Keyring view		Remove
 Cancel	Main window		Cancel
 Restart keystore server	Main menu		Restart keystore server
 Identifier	Data viewer dialog box		Identifier
 Key data	Data viewer dialog box		Key data
+This software makes use of the OpenSSL library.\nCheck the README for general information.\n\tPlease read the help file to get more information about how to use this application.	About box		This software makes use of the OpenSSL library.\nCheck the README for general information.\n\tPlease read the help file to get more information about how to use this application.
 Keys	Main menu		Keys
-Keyring: %s.\n\n%d key(s): %d generic-type, %d password-type.\n%d application(s).	Main window		Keyring: %s.\n\n%d key(s): %d generic-type, %d password-type.\n%d application(s).
+(locked)	Keyring viewer		(locked)
+Locked	Keyring viewer		Locked
 Remove keyring: not allowed	Main window		Remove keyring: not allowed
 Creation time (*)	Data viewer dialog box		Creation time (*)
+Keyrings list: query information.	Scripting properties		Keyrings list: query information.
+Password keys	Keyring viewer		Password keys
+Statistics…	Main menu		Statistics…
 Keystore information	Main window		Keystore information
 Web	Add key dialog box		Web
+Version %versionString%: \"%versionName%\".	About box		Version %versionString%: \"%versionName%\".
 Generic key	Add key dialog box		Generic key
 Secondary identifier (optional)	Add key dialog box		Secondary identifier (optional)
 Do you want to remove this application from this keyring?	Keyring view		Do you want to remove this application from this keyring?
 Application	Keyring view		Application
+Export key as flattened BMessage	Keyring view		Export key as flattened BMessage
+Generate new key	Add key dialog box		Generate new key
+Length	Add key dialog box		Length
 Error	Keyring view		Error
 Volume	Add key dialog box		Volume
 Generic	Add key dialog box		Generic
@@ -31,86 +48,143 @@ Keyring	Data viewer dialog box		Keyring
 Password key	Add key dialog box		Password key
 Volume	Keyring view		Volume
 Remove application	Keyring view		Remove application
+Backup keystore database…	Main menu		Backup keystore database…
 Key data\n(hex dump)	Data viewer dialog box		Key data\n(hex dump)
+Restore keystore database snapshot…	Main menu		Restore keystore database snapshot…
 The BeOS and Haiku community members.	About box		The BeOS and Haiku community members.
-0.1\tInitial version.	About box		0.1\tInitial version.
+Clear all	Main window		Clear all
+Status	Keyring viewer		Status
 Sec. identifier	Data viewer dialog box		Sec. identifier
 Password	Keyring view		Password
 Type	Keyring view		Type
-Data viewer	Data viewer dialog box		Data viewer
 Remove	Main window		Remove
+Do you want to clean the keystore database?\n\nThis will delete all the keyrings and all of their keys, as well as deleting all the keys of \"Master\" keyring (however this last keyring will not be deleted).\n\nThis operation cannot be undone.	Main window		Do you want to clean the keystore database?\n\nThis will delete all the keyrings and all of their keys, as well as deleting all the keys of \"Master\" keyring (however this last keyring will not be deleted).\n\nThis operation cannot be undone.
 Certificate key	Add key dialog box		Certificate key
 View key data	Keyring view		View key data
 Add key	Keyring view		Add key
+Wipe keystore database…	Main menu		Wipe keystore database…
 Keystore.\n\n%d keyring(s).\n	Main window		Keystore.\n\n%d keyring(s).\n
 Add new key	Add key dialog box		Add new key
+Keyring lockdown	Main menu		Keyring lockdown
+Name	Keyring viewer		Name
 Volume	Data viewer dialog box		Volume
+Do you want to remove this keyring's unlock key?	Main window		Do you want to remove this keyring's unlock key?
+0.0.1\tInitial version.	About box		0.0.1\tInitial version.
+An error has occurred. The key could not be successfully exported.	Main window		An error has occurred. The key could not be successfully exported.
 Identifier	Keyring view		Identifier
 Create keyring…	Main menu		Create keyring…
+Restore backup	Main window		Restore backup
+Data viewer: <no key>	Data viewer dialog box		Data viewer: <no key>
 Haiku key store manager.	About box		Haiku key store manager.
 Certificate	Keyring view		Certificate
+Delete all	Main window		Delete all
 Error: the name is in use	Add keyring dialog box		Error: the name is in use
+Keyring: <no keyring>	Keyring viewer		Keyring: <no keyring>
 Type of key	Add key dialog box		Type of key
 Generic	Keyring view		Generic
+Back up	Backupper dialog		Back up
 An entry must be selected first.	Keyring view		An entry must be selected first.
+Creates an encrypted copy of the keystore database.\nOnce created, it can only be read by decrypting it with the proper passphrase.	Backupper dialog		Creates an encrypted copy of the keystore database.\nOnce created, it can only be read by decrypting it with the proper passphrase.
 Cancel	Add key dialog box		Cancel
 OK	Main window		OK
 Extra info	Keyring view		Extra info
+Password	Backupper dialog		Password
 %s: %s.\nUsage: %s [option]\n[option] includes\n\t--help      This message\n\t--version   Shows app version\n	main		%s: %s.\nUsage: %s [option]\n[option] includes\n\t--help      This message\n\t--version   Shows app version\n
 Copy key secret	Keyring view		Copy key secret
 Select the purpose	Add key dialog box		Select the purpose
+Add password key…	Main menu		Add password key…
+Data viewer: 	Data viewer dialog box		Data viewer: 
+Remove keyring…	Main menu		Remove keyring…
+Import key…	Main menu		Import key…
+Encrypted copy	Backupper dialog		Encrypted copy
 Valid	Add keyring dialog box		Valid
-Check the README for more information.	About box		Check the README for more information.
+Clear keyring	Main window		Clear keyring
+Generate	Add key dialog box		Generate
+Wipe keystore	Main window		Wipe keystore
+Applications with access	Keyring viewer		Applications with access
+Open information view	Keyring view		Open information view
+Close	Main window		Close
+Set unlock key for keyring	Add key dialog box		Set unlock key for keyring
 Keyring	Main menu		Keyring
+Wipe keyring…	Main menu		Wipe keyring…
+Adding key to \"%desc%\" keyring.	Add unlock key		Adding key to \"%desc%\" keyring.
+Restore simple copy	Main window		Restore simple copy
 Copy signature	Keyring view		Copy signature
 Keystore	Main menu		Keystore
+Assistance:	About box		Assistance:
+Keyring: query information.	Scripting properties		Keyring: query information.
+The Master keyring cannot be removed.	Main window	\"Master\" is a name	The Master keyring cannot be removed.
 Add keyring	Main window		Add keyring
 Network	Add key dialog box		Network
 Certificate key	Main menu		Certificate key
 Create keyring	Add keyring dialog box		Create keyring
 Authorized applications	Keyring view		Authorized applications
+Adding unlock key to \"%desc%\" keyring.	Add key dialog box		Adding unlock key to \"%desc%\" keyring.
+Cancel	Backupper dialog		Cancel
 Close	Data viewer dialog box		Close
+Close	Keyring viewer		Close
+%name%: set unlock key	Add unlock key		%name%: set unlock key
 Keyring name	Add keyring dialog box		Keyring name
 Keyring statistics…	Main menu		Keyring statistics…
+Unlock key	Main window		Unlock key
+Keys	Keyring viewer		Keys
+Invalid keyring name.	Main window		Invalid keyring name.
 Network	Keyring view		Network
 Remove key	Keyring view		Remove key
 The Key Storage API currently does not support creating keys of type \"Certificate\".	Main window		The Key Storage API currently does not support creating keys of type \"Certificate\".
+Import	Main window		Import
 Purpose	Keyring view		Purpose
+Keyring: creation.	Scripting properties		Keyring: creation.
+Error: there is already a key with the same identifier as the identifier in the key file.	Main window		Error: there is already a key with the same identifier as the identifier in the key file.
+Do you want to restore a backup of the keystore database?\nThe keystore server will be stop temporarily during the operation.\n\nIf you select to restore a simple copy, choose the file in the file panel.\nFor an encrypted backup, choose the datafile where the metadata is contained.\n	Main window		Do you want to restore a backup of the keystore database?\nThe keystore server will be stop temporarily during the operation.\n\nIf you select to restore a simple copy, choose the file in the file panel.\nFor an encrypted backup, choose the datafile where the metadata is contained.\n
+Error	Main window		Error
 Generic key	Main menu		Generic key
-Website:	About box		Website:
+Export key	Main window		Export key
 Purpose	Add key dialog box		Purpose
+Website:	About box		Website:
 Type	Data viewer dialog box		Type
 Keys	Keyring view		Keys
 Error: the name \"Master\" cannot be used	Add keyring dialog box		Error: the name \"Master\" cannot be used
 OK	Keyring view		OK
+Do you want to remove this keyring and all of its contents? This action cannot be undone.	Main window		Do you want to remove this keyring and all of its contents? This action cannot be undone.
 Create key	Main menu		Create key
-The Master keyring cannot be removed.	Main window		The Master keyring cannot be removed.
+Kind	Backupper dialog		Kind
+Keyring: %name% %status%	Keyring viewer		Keyring: %name% %status%
 Save	Add keyring dialog box		Save
-Do you want to remove this keyring and all of its keys? This action cannot be undone.	Main window		Do you want to remove this keyring and all of its keys? This action cannot be undone.
+Remove unlock key…	Main menu		Remove unlock key…
 Generic	Data viewer dialog box		Generic
+Key	Add unlock key		Key
 Purpose	Data viewer dialog box		Purpose
+Generic keys	Keyring viewer		Generic keys
 Remove authorized application	Keyring view		Remove authorized application
-Keys	System name		Keys
+Import key	Main window		Import key
+Simple copy	Backupper dialog		Simple copy
 Save	Add key dialog box		Save
+Keys	System name		Keys
+Set unlock key…	Main menu		Set unlock key…
 Keyring	Add key dialog box		Keyring
-Identifier	Add key dialog box		Identifier
+Generate password key…	Main menu		Generate password key…
 Write the desired name for the new keyring below.\n\nIf a keyring with the written name already exists, this procedure\nwill fail. In addition, the name \"%inv%\" is reserved for the main \nsystem keyring and cannot be used.	Add keyring dialog box		Write the desired name for the new keyring below.\n\nIf a keyring with the written name already exists, this procedure\nwill fail. In addition, the name \"%inv%\" is reserved for the main \nsystem keyring and cannot be used.
+Identifier	Add key dialog box		Identifier
 Password	Data viewer dialog box		Password
 About…	Main menu		About…
 Keystore statistics…	Main menu		Keystore statistics…
 Signature	Keyring view		Signature
-Keyring	Main window		Keyring
+Remove keyring: error	Main window		Remove keyring: error
 Error: the name cannot be empty	Add keyring dialog box		Error: the name cannot be empty
-Cafeina (original author)	About box		Cafeina (original author)
 New key: error	Main window		New key: error
+Cafeina (original author)	About box		Cafeina (original author)
 Cancel	Keyring view		Cancel
-Keyring statistics…	Main window		Keyring statistics…
+Import key: error	Main window		Import key: error
 Adding key to \"%desc%\" keyring.	Add key dialog box		Adding key to \"%desc%\" keyring.
 Network	Data viewer dialog box		Network
 (*) currently not implemented by the Key Storage API.	Data viewer dialog box		(*) currently not implemented by the Key Storage API.
 Keyring	Keyring view		Keyring
-Web	Data viewer dialog box		Web
+Back-up keystore database	Backupper dialog		Back-up keystore database
+Generating key for \"%desc%\" keyring.	Add key dialog box		Generating key for \"%desc%\" keyring.
 %s: version %s\n	main		%s: version %s\n
-Keyring information	Main window		Keyring information
+Web	Data viewer dialog box		Web
+Save	Add unlock key		Save
 Type	Add key dialog box		Type
+Restore encrypted copy	Main window		Restore encrypted copy
 Certificate	Data viewer dialog box		Certificate

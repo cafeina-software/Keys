@@ -1,29 +1,46 @@
-1	English	application/x.vnd.cafeapp.keystoremgmt	4170188105
+1	Spanish	application/x.vnd.cafeapp.keystoremgmt	1494221969
 Quit	Main menu		Salir
+Creates a simple copy of the keystore database.\nIt is not encrypted and anyone with access to the file could read its contents.	Backupper dialog		Crea una copia simple de la base de datos del depósito de claves.\nNo está cifrada y cualquiera con acceso al archivo podría leer sus contenidos.
 Cancel	Add keyring dialog box		Cancelar
 Web	Keyring view		Web
-Remove keyring	Main menu		Quitar llavero
+Stop server	Main menu		Detener servidor
+0.1.0\tData model and messaging rework. More comprehensive API coverage. Bugfixes.	About box		0.1.0\tReimplementación del modelo de datos y mensajería. Ampliada la cobertura de la API. Correcciones de errores.
+Keystore server: execution.	Scripting properties		Servidor del depósito de claves: ejecución.
 Password key	Main menu		Clave de contraseña
 Owner (*)	Data viewer dialog box		Propietario (*)
 Do you want to remove the key \"%key%\" from this keyring?	Keyring view		¿Desea quitar la clave \"%key%\" de este llavero?
 Error	Add keyring dialog box		Error
+Do you want to delete all the keys from this keyring? This action cannot be undone.\n\nThe keyring will not be deleted, neither the applications access list.	Main window		¿Desea borrar todas las claves de este llavero? Esta acción es irreversible.\n\nEl llavero no será borrado y tampoco la lista de aplicaciones con acceso.
+Cancel	Add unlock key		Cancelar
 Remove keyring	Main window		Quitar llavero
+Keyring: deletion.	Scripting properties		Llavero: borrado.
+Lock keyring	Main menu		Bloquear llavero
+Add generic key…	Main menu		Añadir clave genérica…
 Key	Add key dialog box		Clave
 Remove	Keyring view		Quitar
 Cancel	Main window		Cancelar
 Restart keystore server	Main menu		Reiniciar servidor del depósito de claves
 Identifier	Data viewer dialog box		Identificador
 Key data	Data viewer dialog box		Datos de la clave
+This software makes use of the OpenSSL library.\nCheck the README for general information.\n\tPlease read the help file to get more information about how to use this application.	About box		Este software usa la biblioteca OpenSSL.\nConsulte el archivo README para más información general.\n\tPor favor, consulte el archivo de ayuda para obtener más información de cómo usar esta aplicación.
 Keys	Main menu		Claves
-Keyring: %s.\n\n%d key(s): %d generic-type, %d password-type.\n%d application(s).	Main window		Llavero: %s.\n\n%d clave(s): %d de tipo genéricas, %d de tipo contraseña.\n%d aplicacion(es).
+(locked)	Keyring viewer		(bloqueado)
+Locked	Keyring viewer		Bloqueado
 Remove keyring: not allowed	Main window		Quitar llavero: no permitido
 Creation time (*)	Data viewer dialog box		Fecha de creación (*)
+Keyrings list: query information.	Scripting properties		Lista de llaveros: consulta de información.
+Password keys	Keyring viewer		Claves de contraseña
+Statistics…	Main menu		Estadísticas…
 Keystore information	Main window		Información del depósito de claves
 Web	Add key dialog box		Web
+Version %versionString%: \"%versionName%\".	About box		Versión %versionString%: \"%versionName%\".
 Generic key	Add key dialog box		Clave genérica
 Secondary identifier (optional)	Add key dialog box		Identificador secundario (opcional)
 Do you want to remove this application from this keyring?	Keyring view		¿Desea quitar esta aplicación de este llavero?
 Application	Keyring view		Aplicación
+Export key as flattened BMessage	Keyring view		Exportar clave como BMessage aplanado
+Generate new key	Add key dialog box		Generar clave nueva
+Length	Add key dialog box		Largo
 Error	Keyring view		Error
 Volume	Add key dialog box		Volumen
 Generic	Add key dialog box		Genérico
@@ -31,87 +48,143 @@ Keyring	Data viewer dialog box		Llavero
 Password key	Add key dialog box		Clave de contraseña
 Volume	Keyring view		Volumen
 Remove application	Keyring view		Quitar aplicación
+Backup keystore database…	Main menu		Respaldar base de datos…
 Key data\n(hex dump)	Data viewer dialog box		Datos de la clave\n(volcado hex.)
+Restore keystore database snapshot…	Main menu		Restablecer base de datos desde…
 The BeOS and Haiku community members.	About box		Los miembros de la comunidad de BeOS y Haiku.
-0.1\tInitial version.	About box		0.1\tVersión inicial.
+Clear all	Main window		Eliminar todo
+Status	Keyring viewer		Estado
 Sec. identifier	Data viewer dialog box		Identificador sec.
 Password	Keyring view		Contraseña
 Type	Keyring view		Tipo
-Data viewer	Data viewer dialog box		Visor de datos
 Remove	Main window		Quitar
+Do you want to clean the keystore database?\n\nThis will delete all the keyrings and all of their keys, as well as deleting all the keys of \"Master\" keyring (however this last keyring will not be deleted).\n\nThis operation cannot be undone.	Main window		¿Desea limpiar la base de datos del depósito de claves?\n\nEsto eliminará todos los llaveros y sus claves asociadas, así como eliminará todas las claves del llavero \"Master\" (aunque este último llavero no será eliminado).\n\nEsta operación es irreversible.
 Certificate key	Add key dialog box		Clave de certificado
-View key data	Keyring view		Ver datos de la clave
+View key data	Keyring view		Ver datos de clave
 Add key	Keyring view		Añadir clave
+Wipe keystore database…	Main menu		Limpiar base de datos…
 Keystore.\n\n%d keyring(s).\n	Main window		Depósito de claves.\n\n%d llavero(s).\n
 Add new key	Add key dialog box		Añadir clave nueva
+Keyring lockdown	Main menu		Bloqueo de llavero
+Name	Keyring viewer		Nombre
 Volume	Data viewer dialog box		Volumen
+Do you want to remove this keyring's unlock key?	Main window		¿Desea quitar la clave de desbloqueo de este llavero?
+0.0.1\tInitial version.	About box		0.1\tVersión inicial.
+An error has occurred. The key could not be successfully exported.	Main window		Ha sucedido un error: la clave no se ha podido exportar correctamente.
 Identifier	Keyring view		Identificador
 Create keyring…	Main menu		Crear llavero…
+Restore backup	Main window		Restaurar copia de seguridad
+Data viewer: <no key>	Data viewer dialog box		Visor de datos: <sin clave>
 Haiku key store manager.	About box		Administrador del depósito de claves de Haiku.
 Certificate	Keyring view		Certificado
+Delete all	Main window		Eliminar todo
 Error: the name is in use	Add keyring dialog box		Error: el nombre está en uso
+Keyring: <no keyring>	Keyring viewer		Llavero: <sin llavero>
 Type of key	Add key dialog box		Tipo de clave
-Generic	Keyring view		Genérica
+Generic	Keyring view		Genérico
+Back up	Backupper dialog		Respaldar
 An entry must be selected first.	Keyring view		Primero debe seleccionarse una entrada.
+Creates an encrypted copy of the keystore database.\nOnce created, it can only be read by decrypting it with the proper passphrase.	Backupper dialog		Crea una copia cifrada de la base de datos del depósito de claves.\nUna vez creada, sólo podrá leerse tras descifrarla con la frase de contraseña correcta.
 Cancel	Add key dialog box		Cancelar
 OK	Main window		Aceptar
 Extra info	Keyring view		Información extra
+Password	Backupper dialog		Contraseña
 %s: %s.\nUsage: %s [option]\n[option] includes\n\t--help      This message\n\t--version   Shows app version\n	main		%s: %s.\nUso: %s [opción]\n[opción] incluye\n\t--help      Este mensaje\n\t--version   Muestra la versión de la aplicación\n
-Copy key secret	Keyring view		Copiar información secreta
+Copy key secret	Keyring view		Copiar secreto de la clave
 Select the purpose	Add key dialog box		Elija el propósito
+Add password key…	Main menu		Añadir clave de contraseña…
+Data viewer: 	Data viewer dialog box		Visor de datos: 
+Remove keyring…	Main menu		Quitar llavero…
+Import key…	Main menu		Importar clave…
+Encrypted copy	Backupper dialog		Copia cifrada
 Valid	Add keyring dialog box		Válido
-Check the README for more information.	About box		Consulte el archivo README para más información.
+Clear keyring	Main window		Limpiar llavero
+Generate	Add key dialog box		Generar
+Wipe keystore	Main window		Limpiar base de datos
+Applications with access	Keyring viewer		Applicaciones con acceso
+Open information view	Keyring view		Abrir panel de información
+Close	Main window		Cerrar
+Set unlock key for keyring	Add key dialog box		Establecer clave de desbloqueo para el llavero
 Keyring	Main menu		Llavero
+Wipe keyring…	Main menu		Limpiar llavero…
+Adding key to \"%desc%\" keyring.	Add unlock key		Añadiendo clave al llavero \"%desc%\".
+Restore simple copy	Main window		Restablecer copia simple
 Copy signature	Keyring view		Copiar firma
 Keystore	Main menu		Depósito de claves
+Assistance:	About box		Asistencia:
+Keyring: query information.	Scripting properties		Llavero: consultar información.
+The Master keyring cannot be removed.	Main window	\"Master\" is a name	El llavero Master no se puede quitar.
 Add keyring	Main window		Añadir llavero
 Network	Add key dialog box		Red
 Certificate key	Main menu		Clave de certificado
 Create keyring	Add keyring dialog box		Crear llavero
 Authorized applications	Keyring view		Aplicaciones autorizadas
+Adding unlock key to \"%desc%\" keyring.	Add key dialog box		Añadiendo clave de desbloqueo al llavero \"%desc%\".
+Cancel	Backupper dialog		Cancelar
 Close	Data viewer dialog box		Cerrar
-Keyring name	Add keyring dialog box		Nombre de llavero
+Close	Keyring viewer		Cerrar
+%name%: set unlock key	Add unlock key		%name%: establecer clave de desbloqueo
+Keyring name	Add keyring dialog box		Nombre del llavero
 Keyring statistics…	Main menu		Estadísticas del llavero…
+Unlock key	Main window		Clave de desbloqueo
+Keys	Keyring viewer		Claves
+Invalid keyring name.	Main window		Nombre de llavero inválido.
 Network	Keyring view		Red
 Remove key	Keyring view		Quitar clave
 The Key Storage API currently does not support creating keys of type \"Certificate\".	Main window		La API del depósito de claves actualmente no permite crear claves de tipo \"Certificado\".
+Import	Main window		Importar
 Purpose	Keyring view		Propósito
+Keyring: creation.	Scripting properties		Llavero: creación.
+Error: there is already a key with the same identifier as the identifier in the key file.	Main window		Error: ya existe una clave con el mismo identificador que el que posee la clave del archivo.
+Do you want to restore a backup of the keystore database?\nThe keystore server will be stop temporarily during the operation.\n\nIf you select to restore a simple copy, choose the file in the file panel.\nFor an encrypted backup, choose the datafile where the metadata is contained.\n	Main window		¿Desea restaurar una copia de seguridad de la base de datos del depósito de claves?\nEl servidor del depósito de claves se detendrá temporalmente durante la operación.\n\nSi opta por realizar una copia simple, elija el archivo en el panel de archivos.\nPara una copia cifrada, elija el archivo de datos en donde se volcarán los metadatos de cifrado.\n
+Error	Main window		Error
 Generic key	Main menu		Clave genérica
-Website:	About box		Sitio web:
+Export key	Main window		Exportar clave
 Purpose	Add key dialog box		Propósito
+Website:	About box		Sitio web:
 Type	Data viewer dialog box		Tipo
 Keys	Keyring view		Claves
 Error: the name \"Master\" cannot be used	Add keyring dialog box		Error: el nombre \"Master\" no se puede usar
 OK	Keyring view		Aceptar
+Do you want to remove this keyring and all of its contents? This action cannot be undone.	Main window		¿Desea quitar este llavero y todas sus claves? Esta acción es irreversible.
 Create key	Main menu		Crear clave
-The Master keyring cannot be removed.	Main window		El llavero Master no se puede quitar.
+Kind	Backupper dialog		Clase
+Keyring: %name% %status%	Keyring viewer		Llavero: %name% %status%
 Save	Add keyring dialog box		Guardar
-Do you want to remove this keyring and all of its keys? This action cannot be undone.	Main window		¿Desea quitar este llavero y todas sus claves? Esta acción es irreversible.
+Remove unlock key…	Main menu		Quitar clave de desbloqueo…
 Generic	Data viewer dialog box		Genérico
+Key	Add unlock key		Clave
 Purpose	Data viewer dialog box		Propósito
+Generic keys	Keyring viewer		Claves genéricas
 Remove authorized application	Keyring view		Quitar aplicación autorizada
-Keys	System name		Claves
+Import key	Main window		Importar clave
+Simple copy	Backupper dialog		Copia simple
 Save	Add key dialog box		Guardar
+Keys	System name		Claves
+Set unlock key…	Main menu		Establecer clave de desbloqueo…
 Keyring	Add key dialog box		Llavero
-Identifier	Add key dialog box		Identificador
+Generate password key…	Main menu		Generar clave de contraseña…
 Write the desired name for the new keyring below.\n\nIf a keyring with the written name already exists, this procedure\nwill fail. In addition, the name \"%inv%\" is reserved for the main \nsystem keyring and cannot be used.	Add keyring dialog box		Escriba el nombre deseado para el nuevo llavero.\n\nSi ya existe un llavero con el mismo nombre\nel proceso fallará. Además, el nombre \"%inv%\" está reservado como el \nllavero del sistema y no se puede usar.
+Identifier	Add key dialog box		Identificador
 Password	Data viewer dialog box		Contraseña
 About…	Main menu		Acerca de…
 Keystore statistics…	Main menu		Estadísticas del depósito de claves…
 Signature	Keyring view		Firma
-Keyring	Main window		Llavero
+Remove keyring: error	Main window		Eliminar llavero: error
 Error: the name cannot be empty	Add keyring dialog box		Error: el nombre no puede estar vacío
-Cafeina (original author)	About box		Cafeina (autor original)
 New key: error	Main window		Nueva clave: error
+Cafeina (original author)	About box		Cafeina (autor original)
 Cancel	Keyring view		Cancelar
-Keyring statistics…	Main window		Estadísticas del llavero…
+Import key: error	Main window		Importar clave: error
 Adding key to \"%desc%\" keyring.	Add key dialog box		Añadiendo clave al llavero \"%desc%\".
 Network	Data viewer dialog box		Red
 (*) currently not implemented by the Key Storage API.	Data viewer dialog box		(*) actualmente no implementado en la API del depósito de claves.
 Keyring	Keyring view		Llavero
-Web	Data viewer dialog box		Web
+Back-up keystore database	Backupper dialog		Respaldar base de datos
+Generating key for \"%desc%\" keyring.	Add key dialog box		Generando clave para el llavero \"%desc%\".
 %s: version %s\n	main		%s: versión %s\n
-Keyring information	Main window		Información del llavero
+Web	Data viewer dialog box		Web
+Save	Add unlock key		Guardar
 Type	Add key dialog box		Tipo
+Restore encrypted copy	Main window		Restablecer copia cifrada
 Certificate	Data viewer dialog box		Certificado
-Certificado
