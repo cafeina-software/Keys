@@ -8,6 +8,7 @@
 #define kAppName        "Keys"
 #define kAppDesc        "Haiku key store manager"
 #define kAppSignature   "application/x.vnd.cafeapp.keystoremgmt"
+#define kAppSuitesSgn   "suite/vnd.cafeapp.keystoremgmt"
 #define kAppVersionStr  "0.1.0"
 #define kAppHomePage    "https://codeberg.org/cafeina/Keys"
 

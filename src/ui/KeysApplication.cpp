@@ -6,6 +6,7 @@
 #include <Catalog.h>
 #include <DateTime.h>
 #include <KeyStore.h>
+#include <PropertyInfo.h>
 #include <private/interface/AboutWindow.h>
 #include <cstdio>
 #include "KeysApplication.h"
@@ -15,6 +16,53 @@
 #include "../data/KeystoreImp.h"
 #include "../data/PasswordStrength.h"
 
+#undef B_TRANSLATION_CONTEXT
+#define B_TRANSLATION_CONTEXT "Scripting properties"
+
+static property_info kKeysProperties[] = {
+    {
+        .name       = "StartServer",
+        .commands   = { B_EXECUTE_PROPERTY, 0 },
+        .specifiers = { B_DIRECT_SPECIFIER, 0 },
+        .usage      = B_TRANSLATE("Keystore server: execution."),
+        .extra_data = 0,
+        .types      = { }
+    },
+    {
+        .name       = "Keyrings",
+        .commands   = { B_GET_PROPERTY, B_COUNT_PROPERTIES, 0 },
+        .specifiers = { B_DIRECT_SPECIFIER, 0 },
+        .usage      = B_TRANSLATE("Keyrings list: query information."),
+        .extra_data = 0,
+        .types      = { B_STRING_TYPE, B_INT32_TYPE }
+    },
+    {
+        .name       = "Keyring",
+        .commands   = { B_GET_PROPERTY, 0 },
+        .specifiers = { B_NAME_SPECIFIER, B_INDEX_SPECIFIER, 0 },
+        .usage      = B_TRANSLATE("Keyring: query information."),
+        .extra_data = 0,
+        .types      = { B_MESSAGE_TYPE }
+    },
+    {
+        .name       = "Keyring",
+        .commands   = { B_CREATE_PROPERTY, 0 },
+        .specifiers = { B_DIRECT_SPECIFIER, 0 },
+        .usage      = B_TRANSLATE("Keyring: creation."),
+        .extra_data = 0,
+        .types      = { B_STRING_TYPE }
+    },
+    {
+        .name       = "Keyring",
+        .commands   = { B_DELETE_PROPERTY, 0 },
+        .specifiers = { B_DIRECT_SPECIFIER, B_NAME_SPECIFIER, 0 },
+        .usage      = B_TRANSLATE("Keyring: deletion."),
+        .extra_data = 0,
+        .types      = { B_STRING_TYPE }
+    },
+    { 0 }
+};
+enum { PROPERTY_SERVER, PROPERTY_KEYRINGS, PROPERTY_KEYRING_READ, PROPERTY_KEYRING_CREATE, PROPERTY_KEYRING_DELETE };
 const char* kKeyStoreServerSignature = "application/x-vnd.Haiku-keystore_server";
 
 KeysApplication::KeysApplication()
@@ -55,6 +103,19 @@ void KeysApplication::MessageReceived(BMessage* msg)
 {
     switch(msg->what)
     {
+        case B_COUNT_PROPERTIES:
+        case B_CREATE_PROPERTY:
+        case B_DELETE_PROPERTY:
+        case B_EXECUTE_PROPERTY:
+        case B_GET_PROPERTY:
+        case B_SET_PROPERTY:
+        {
+            if(!msg->HasSpecifiers())
+                break;
+
+            HandleScripting(msg);
+            break;
+        }
         case B_NODE_MONITOR:
             // _InitAppData(&ks, &keystore);
             // window->PostMessage(new BMessage(I_DATA_REFRESH));
@@ -207,6 +268,139 @@ void KeysApplication::AboutRequested()
         about->CenterIn(window->Frame());
     }
 	about->Show();
+}
+
+status_t KeysApplication::GetSupportedSuites(BMessage* msg)
+{
+    msg->AddString("suites", kAppSuitesSgn);
+
+    BPropertyInfo propertyInfo(kKeysProperties);
+    msg->AddFlat("messages", &propertyInfo);
+
+    return BApplication::GetSupportedSuites(msg);
+}
+
+BHandler* KeysApplication::ResolveSpecifier(BMessage* msg, int32 index,
+    BMessage* specifier, int32 what, const char* property)
+{
+    BPropertyInfo propertyInfo(kKeysProperties);
+    if(propertyInfo.FindMatch(msg, index, specifier, what, property) >= 0)
+        return this;
+
+    return BApplication::ResolveSpecifier(msg, index, specifier, what, property);
+}
+
+void KeysApplication::HandleScripting(BMessage* msg)
+{
+    BMessage reply(B_REPLY);
+    int32 index = 0;
+    BMessage specifier;
+    int32 what = 0;
+    const char* property = NULL;
+    if(msg->GetCurrentSpecifier(&index, &specifier, &what, &property) == B_OK) {
+        status_t status = B_ERROR;
+
+        switch(BPropertyInfo(kKeysProperties).FindMatch(msg, index, &specifier, what, property))
+        {
+            case PROPERTY_SERVER:
+            {
+                if(msg->what == B_EXECUTE_PROPERTY) {
+                    status = _RestartServer(true, true);
+                }
+                break;
+            }
+            case PROPERTY_KEYRINGS:
+            {
+                if(msg->what == B_GET_PROPERTY) {
+                    for(int i = 0; i < ks->KeyringCount(); i++)
+                        reply.AddString("result", ks->KeyringAt(i)->Identifier());
+                    status = B_OK;
+                }
+                else if(msg->what == B_COUNT_PROPERTIES) {
+                    reply.AddInt32("result", ks->KeyringCount());
+                    status = B_OK;
+                }
+                break;
+            }
+            case PROPERTY_KEYRING_READ:
+            {
+                if(msg->what == B_GET_PROPERTY) {
+                    KeyringImp* keyring = nullptr;
+                    if(what == B_NAME_SPECIFIER)
+                        keyring = ks->KeyringByName(specifier.GetString("name"));
+                    else if(what == B_INDEX_SPECIFIER)
+                        keyring = ks->KeyringAt(specifier.GetInt32("index", -1));
+
+                    if(!keyring) {
+                        status = B_ENTRY_NOT_FOUND;
+                        break;
+                    }
+
+                    BMessage replyData(B_ARCHIVED_OBJECT);
+                    replyData.AddString("name", keyring->Identifier());
+                    replyData.AddBool("unlocked", keyring->IsUnlocked());
+                    replyData.AddInt32("keys", keyring->KeyCount());
+                    replyData.AddInt32("applications", keyring->ApplicationCount());
+                    reply.AddMessage("result", &replyData);
+                    status = B_OK;
+                }
+                break;
+            }
+            case PROPERTY_KEYRING_CREATE:
+            {
+                if(msg->what == B_CREATE_PROPERTY) {
+                    const char* name = msg->GetString("name");
+                    if(!name || strcmp(name, "Master") == 0) {
+                        status = B_BAD_VALUE;
+                        break;
+                    }
+
+                    if(ks->KeyringByName(name)) {
+                        status = EEXIST;
+                        break;
+                    }
+
+                    status = ks->AddKeyring(name, true);
+                    if(status == B_OK && ks->KeyringByName(name))
+                        _RebuildModel();
+                    else
+                        status = B_ERROR;
+                }
+                break;
+            }
+            case PROPERTY_KEYRING_DELETE:
+            {
+                if(msg->what == B_DELETE_PROPERTY) {
+                    const char* name = specifier.GetString("name");
+                    if(!name || strcmp(name, "Master") == 0) {
+                        status = B_BAD_VALUE;
+                        break;
+                    }
+
+                    if(!ks->KeyringByName(name)) {
+                        status = B_ENTRY_NOT_FOUND;
+                        break;
+                    }
+
+                    status = ks->RemoveKeyring(name, true);
+                    if(status == B_OK && !ks->KeyringByName(name))
+                        _RebuildModel();
+                    else
+                        status = B_ERROR;
+                }
+                break;
+            }
+            default:
+                return BApplication::MessageReceived(msg);
+        }
+
+        if(status < B_OK) {
+            reply.what = B_MESSAGE_NOT_UNDERSTOOD;
+            reply.AddInt32("error", status);
+            reply.AddString("message", strerror(status));
+        }
+        msg->SendReply(&reply);
+    }
 }
 
 // #pragma mark -

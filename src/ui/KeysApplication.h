@@ -20,6 +20,10 @@ public:
     virtual void    MessageReceived(BMessage* msg);
     virtual void    AboutRequested();
     virtual bool    QuitRequested();
+    virtual status_t GetSupportedSuites(BMessage* msg);
+    virtual BHandler* ResolveSpecifier(BMessage* msg, int32 index, BMessage* specifier,
+                                       int32 what, const char* property);
+            void    HandleScripting(BMessage* msg);
 
     void            KeystoreBackup(BMessage* msg);
     void            KeystoreRestore(BMessage* msg);
