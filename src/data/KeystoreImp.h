@@ -13,6 +13,10 @@ template <typename T>
 T* FindInList(BObjectList<T> list, const char* idstring) {
 	T* selection = NULL;
 
+    if(list.IsEmpty() || !idstring || strcmp(idstring, "") == 0) {
+        return selection; // is NULL
+    }
+
 	int i = 0;
 	bool found = false;
 
@@ -31,6 +35,10 @@ template <typename T>
 T* FindInList2(BObjectList<T> list, const char* idstring, const char* secstring) {
     T* selection = NULL;
 
+    if(list.IsEmpty() || !idstring || strcmp(idstring, "") == 0) {
+        return selection; // is NULL
+    }
+
 	int i = 0;
 	bool found = false;
 
@@ -45,6 +53,10 @@ T* FindInList2(BObjectList<T> list, const char* idstring, const char* secstring)
 
 	return selection;
 }
+
+const char* StringForPurpose(BKeyPurpose);
+const char* StringForType(BKeyType);
+bool IsExportedKey(BMessage* keyFileData);
 
 class KeyringImp;
 class KeystoreImp;

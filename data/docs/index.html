@@ -118,6 +118,7 @@ img.showcase {
   <ul class="navbar">
    <li class="navbar"><a href="#" id="main">Keys README</a></li>
    <li class="navbar"><a href="#usage">Usage</a></li>
+   <li class="navbar"><a href="#server">Keystore server</a></li>
    <li class="navbar"><a href="#keystore">Keystore management</a></li>
    <li class="navbar"><a href="#keyring">Keys and application access lists</a></li>
   </ul>
@@ -126,6 +127,21 @@ img.showcase {
   <p>This application is intended to be a frontend for the keystore_server,
   to perform a more user friendly operation of keys and keyrings stored there.
   </p>
+  <h2 id="server">Keystore server</h2>
+  <h3>(Re)start <samp>keystore_server</samp></h3>
+  <p>In the case where the <samp>keystore_server</samp> is not running, you can
+  make the server to restart by selecting the menu <var>Keys</var> &gt;
+  <var>Restart keystore server</var>. This operation is performed immediately.
+  The graphic interface will populate itself automatically with the database
+  information.
+  </p>
+  <h3>Stop <samp>keystore_server</samp></h3>
+  <p>If for any reason you need to stop the <samp>keystore_server</samp>,
+  in addition of being able to do it from the Process Controller you can also
+  do it from here with <var>Keys</var> &gt; <var>Stop server</var>. This
+  operation is performed immediately. The graphic interface will disable itself
+  and no keystore-related operations can be performed until the server is
+  restarted.</p>
   <h2 id="keystore">Keystore management</h2>
   <p>Keystore management includes options to create new keyrings and delete
   existing keyrings.</p>
@@ -134,7 +150,7 @@ img.showcase {
   <var>Keystore</var> &gt; <var>Create keyring…</var> (you can also quickly do
   this by clicking the <var>+</var> button at the bottom of the keyring
   list view). This will open a dialog box:</p>
-  <img class="showcase" src="img/en/add_new_keyring.png" width="521" height="305"  />
+  <img class="showcase" src="img/en/add_new_keyring.png" width="521" height="305" />
   <p>The dialog box has only the option to write the name of the keyring to be
   created and two buttons to confirm or to cancel the creation. To create a
   keyring, write the desired name and then click Save. If you changed your
@@ -147,6 +163,20 @@ img.showcase {
   The name must not be empty, and can contain alphanumeric characters or
   symbols such as dashes or underscores.</div>
   </div>
+  <h3>Keyring lockdown</h3>
+  <p>A keyring can be locked, so it will ask for user consent before open it
+  again. This can be performed by selecting a keyring in the keyrings list view,
+  and then going to <var>Keyring</var> &gt; <var>Keyring lockdown</var>
+  &gt; <var>Lock keyring</var>.</p>
+  <p>In order to have the lockdown more effective, the user can activate an
+  unlock key that requires the user to disable the lockdown with a password.
+  This can be done by going to <var>Keyring</var> &gt; <var>Keyring lockdown</var>
+  &gt; <var>Set unlock key…</var>. A dialog box slightly resembling the <var>Add
+  new key</var> from below will appear: to add an unlock key type the password
+  and press <var>Save</var>, or <var>Cancel</var> to abort the operation without
+  changes.</p>
+  <p>The unlock key can be removed with the menu <var>Keyring</var> &gt;
+  <var>Keyring lockdown</var> &gt; <var>Remove unlock key…</var>.</p>
   <h3>Deletion of keyrings</h3>
   <p>To delete an existing keyring in the system keystore, first select the
   target keyring in the keyring list view and then go to the menu
@@ -162,11 +192,6 @@ img.showcase {
   system and it cannot be deleted. If you try to delete it, the Keystore API
   will not allow you to do it.</div>
   </div>
-  <h3>Restart <samp>keystore_server</samp></h3>
-  <p>In the case where the <samp>keystore_server</samp> is not running, you can
-  make the server to restart by selecting the menu <var>Keys</var> &gt;
-  <var>Restart keystore server</var>. This operation is performed immediately.
-  </p>
   <h3>Keystore statistics</h3>
   <p>To know more about the statistics of the keystore, go to the menu
   <var>Keystore</var> &gt; <var>Keystore statistics…</var>. This option
@@ -199,6 +224,23 @@ img.showcase {
   a key data (i.e. a password), a type and a purpose. Once the required fields
   are filled, click Save to create the key, or Cancel to abort the
   operation.</p>
+  <h4>Import and export keys</h4>
+  <p>It is possible for a selected key entry to be exported to a file to
+  afterwards import it for any reason. To export a key, select an entry and
+  click on the <var>Export key</var> sidebar button. It will ask for a file name
+  and a location to where the file will be written to.
+  </p>
+  <p>If for any reason your key or the keyring containing your key was deleted,
+  if you exported a copy of it you can import it back to the database. Firstly,
+  select the target keyring in the keyring list view, then go to the menu
+  <var>Keyring</var> &gt; <var>Import key…</var>. An open dialog will appear,
+  where you choose the file containing the key and press <var>Import key</var>
+  to import it.</p>
+  <p>You can also import in bulk a number of exported keys by dragging and
+  dropping the files onto the keyring list view with the target keyring
+  selected. There, a dialog will appear to confirm what keys are available
+  for importing and you can choose which ones you want.</p>
+  <img class="showcase" src="img/en/multiple_importer.png" width="638" height="433" />
   <h4>Delete keys</h4>
   <p>To delete a key, select the target key and click the button of Remove key
   in the sidebar of the Keys view. It will ask for confirmation once. To
@@ -228,10 +270,11 @@ img.showcase {
   information dialog box about the application's binary.</p>
   <h3>Keyring statistics</h3>
   <p>The option <var>Keyring</var> &gt; <var>Keyring statistics…</var> shows
-  the statistics of the currently selected keyring. It currently only offers
+  the statistics of the currently selected keyring. It currently offers the
+  status of the keyring (whether it is under lockdown or not),
   the number of keys (and how many of each type), and the number of applications
   with access.</p>
-  <img class="showcase" src="img/en/keyring_stats.png" width="452" height="161" />
+  <img class="showcase" src="img/en/keyring_stats.png" width="311" height="380" />
   <hr />
   <footer id="end">Keys README</footer>
  </body>

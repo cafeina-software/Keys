@@ -5,12 +5,17 @@
 #ifndef __KEYS_DEFS_H_
 #define __KEYS_DEFS_H_
 
+#include <Path.h>
+#include <SupportDefs.h>
+#include <cstdio>
+
 #define kAppName        "Keys"
 #define kAppDesc        "Haiku key store manager"
 #define kAppSignature   "application/x.vnd.cafeapp.keystoremgmt"
 #define kAppSuitesSgn   "suite/vnd.cafeapp.keystoremgmt"
-#define kAppVersionStr  "0.1.0"
+#define kAppVersionStr  "0.1.1"
 #define kAppHomePage    "https://codeberg.org/cafeina/Keys"
+#define kAppSettings    kAppName ".settings"
 
 #if defined(DEBUG) || defined(_DEBUG)
 #define __trace(x, ...) fprintf(stderr, kAppName " @ %s: " x, __func__, ##__VA_ARGS__)
@@ -53,13 +58,19 @@
 #define M_KEY_IMPORT                'imky'
 #define M_KEY_EXPORT                'exky'
 #define M_KEY_DELETE                'rmky'
-#define M_APPAUTH_DELETE            'rmap'
+#define M_APP_DELETE                'rmap'
 
 enum ui_status {
+    S_UI_NO_SERVER,
+    S_UI_HAS_SERVER,
     S_UI_NO_KEYRING_IN_FOCUS,
     S_UI_HAS_KEYRING_IN_FOCUS,
     S_UI_SET_KEYRING_FOCUS,
     S_UI_REMOVE_KEYRING_FOCUS
 };
+
+int help();
+int version();
+status_t DBPath(BPath* path);
 
 #endif /* __KEYS_DEFS_H_ */

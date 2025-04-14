@@ -26,28 +26,29 @@
 class KeyringView : public BView
 {
 public:
-                  KeyringView(BRect frame, const char* name, KeystoreImp* _ks);
-    virtual void  AttachedToWindow();
-    virtual void  MessageReceived(BMessage* msg);
+                        KeyringView(BRect frame, const char* name, KeystoreImp* _ks);
+    virtual             ~KeyringView();
 
-    virtual void  Update(const void* data = NULL);
-private:
-    void          _InitAppData(/*KeystoreImp* ks*/);
-    void          _CopyKey(KeystoreImp* ks);
-    void          _CopyAppSignature(KeystoreImp* ks);
-    void          _CopyData(KeystoreImp* ks, BColumnListView* owner, const uint8* data);
-    void          _RemoveKey(KeystoreImp* ks, const char* id, const char* sec);
-    void          _RemoveApp(KeystoreImp* ks, const char* _app);
-    int           _MaxLength(BColumnListView* view, int fieldid, int defValue, KeystoreImp* ks, bool iskeytype);
-private:
-    BTabView        *tabView;
-    BColumnListView *keylistview,
-                    *applistview;
-    BToolBar        *keylsttoolbar,
-                    *applsttoolbar;
+    virtual void        AttachedToWindow();
+    virtual void        MessageReceived(BMessage* msg);
 
-    KeystoreImp     *ks;
-    const char      *keyringname;
+    virtual void        Update(const void* data = NULL);
+private:
+            void        _InitAppData(const char* target);
+            void        _CopyKey(KeystoreImp* ks);
+            void        _CopyAppSignature(KeystoreImp* ks);
+            void        _CopyData(KeystoreImp* ks, BColumnListView* owner, const uint8* data);
+            void        _RemoveKey(KeystoreImp* ks, const char* id, const char* sec);
+            void        _RemoveApp(KeystoreImp* ks, const char* _app);
+private:
+    BTabView            *tabView;
+    BColumnListView     *keylistview,
+                        *applistview;
+    BToolBar            *keylsttoolbar,
+                        *applsttoolbar;
+
+    KeystoreImp         *ks;
+    const char          *keyringname;
 };
 
 #endif

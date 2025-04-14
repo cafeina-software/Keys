@@ -11,7 +11,6 @@
 #include <ctime>
 #include "AddKeyDialogBox.h"
 #include "../KeysDefs.h"
-#include "../data/KeystoreImp.h"
 #include "../data/PasswordStrength.h"
 
 #undef B_TRANSLATION_CONTEXT
@@ -21,7 +20,6 @@ AddKeyDialogBox::AddKeyDialogBox(BWindow* parent, BRect frame,
     const char* keyringname, BKeyType desiredType, BView* view, AKDlgModel dialogType)
 : BWindow(frame, "", B_FLOATING_WINDOW_LOOK, B_FLOATING_ALL_WINDOW_FEEL,
     B_NOT_ZOOMABLE|B_NOT_RESIZABLE|B_AUTO_UPDATE_SIZE_LIMITS),
-    //ks(_ks),
     keyring(keyringname),
     currentId(""),
     currentId2(""),
@@ -166,9 +164,6 @@ void AddKeyDialogBox::MessageReceived(BMessage* msg)
             break;
         }
         case AKDLG_KEY_MODIFIED:
-            // currentId = fTcIdentifier->Text();
-            // currentId2 = fTcSecIdentifier->Text();
-            // currentData = fTcData->Text();
             _UpdateStatusBar(fSbPwdStrength, fTcData->Text());
             fBtSave->SetEnabled(_IsAbleToSave());
             break;

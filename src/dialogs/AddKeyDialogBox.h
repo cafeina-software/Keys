@@ -37,8 +37,9 @@ enum AKDlgModel {
 class AddKeyDialogBox : public BWindow
 {
 public:
-                  AddKeyDialogBox(BWindow* parent, BRect frame, //KeystoreImp* _ks,
-                    const char* keyringname, BKeyType desiredType, BView* view, AKDlgModel dialogType = AKDM_STANDARD);
+                  AddKeyDialogBox(BWindow* parent, BRect frame,
+                    const char* keyringname, BKeyType desiredType,
+                    BView* view, AKDlgModel dialogType = AKDM_STANDARD);
     virtual void  MessageReceived(BMessage* msg);
     virtual bool  QuitRequested();
 private:
@@ -62,7 +63,6 @@ private:
                  *fTcSecIdentifier,
                  *fTcData;
 
-//    KeystoreImp  *ks;
     const char   *keyring;
     BString       currentId,
                   currentId2,

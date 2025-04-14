@@ -41,6 +41,7 @@ SRCS = 	src/main.cpp                           \
         src/dialogs/BackUpDBDialogBox.cpp      \
         src/dialogs/DataViewerDialogBox.cpp    \
         src/dialogs/KeyringViewerDialogBox.cpp \
+        src/dialogs/MultipleImporterDialogBox.cpp \
 		src/ui/KeysApplication.cpp             \
 		src/ui/KeysWindow.cpp                  \
 		src/ui/KeyringView.cpp                 \
@@ -129,10 +130,13 @@ SYMBOLS := TRUE
 
 #	Includes debug information, which allows the binary to be debugged easily.
 #	If set to "TRUE", debug info will be created.
-DEBUGGER := TRUE
+DEBUGGER :=
 
 #	Specify any additional compiler flags to be used.
 COMPILER_FLAGS =
+ifeq ($(DEBUGGER),TRUE)
+    COMPILER_FLAGS += -DDEBUG=1
+endif
 
 #	Specify any additional linker flags to be used.
 LINKER_FLAGS =

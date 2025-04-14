@@ -10,11 +10,13 @@
 #include <Resources.h>
 #include <Roster.h>
 #include <cstdio>
+#include <cassert>
 #include "../data/BackUpUtils.h"
 #include "../dialogs/AddKeyDialogBox.h"
 #include "../dialogs/AddUnlockKeyDialogBox.h"
 #include "../dialogs/AddKeyringDialogBox.h"
 #include "../dialogs/KeyringViewerDialogBox.h"
+#include "../dialogs/MultipleImporterDialogBox.h"
 #include "../dialogs/BackUpDBDialogBox.h"
 #include "../KeysDefs.h"
 #include "KeysWindow.h"
@@ -84,6 +86,8 @@ void make_string_filename_friendly(const char* instr, size_t length, char*& outs
     }
 }
 
+// #pragma mark -
+
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Main window"
 
@@ -91,13 +95,15 @@ KeysWindow::KeysWindow(BRect frame, KeystoreImp* _ks, BKeyStore* _keystore)
 : BWindow(frame, B_TRANSLATE_SYSTEM_NAME(kAppName), B_TITLED_WINDOW, B_QUIT_ON_WINDOW_CLOSE),
   keystore(_keystore),
   ks(_ks),
-  uist(S_UI_NO_KEYRING_IN_FOCUS),
+  uiStatus(S_UI_NO_KEYRING_IN_FOCUS),
   fFilter(new KeyMsgRefFilter),
   openPanel(nullptr),
   savePanel(nullptr),
   fRemKeyring(nullptr),
   fIsLockedKeyring(nullptr),
-  fMenuKeyring(nullptr)
+  fMenuKeyring(nullptr),
+  fMenuKey(nullptr),
+  fAppKey(nullptr)
 {
     init_shared_icons();
 
@@ -112,9 +118,7 @@ KeysWindow::KeysWindow(BRect frame, KeystoreImp* _ks, BKeyStore* _keystore)
     listView->SetExplicitMaxSize(BSize(listView->StringWidth("Master") * 3, B_SIZE_UNSET));
     BScrollView *listScroll = new BScrollView("sc_main", listView, 0, false, true);
 
-    cardView = new BCardView("cv_main");
-
-    _InitAppData(ks);
+    keyringView = new KeyringView(BRect(), "", ks);
 
     addKeyringButton = new BButton("bt_addkr", "+", new BMessage(I_KEYRING_ADD));
     addKeyringButton->SetToolTip(B_TRANSLATE("Add keyring"));
@@ -156,10 +160,12 @@ KeysWindow::KeysWindow(BRect frame, KeystoreImp* _ks, BKeyStore* _keystore)
                         .Add(removeKeyringButton, 1, 0)
                     .End()
                 .End()
-                .Add(cardView)
+                .Add(keyringView)
             .End()
         .End()
     .End();
+
+    _InitAppData(ks);
 }
 
 KeysWindow::~KeysWindow()
@@ -193,26 +199,11 @@ void KeysWindow::MessageReceived(BMessage* msg)
             break;
         case I_SELECTED:
         {
-            // Basic approach (requires items not being reordered to not show the wrong view)
-            int32 index = msg->GetInt32("index", 0);
-            if(index >= 0 && index < cardView->CountChildren())
-                cardView->CardLayout()->SetVisibleItem(index);
-
-            /* // Alternative approach (safer, allows separated insertion of
-               //   list items and child views, but is more expensive):
             const char* sel = ((BStringItem*)listView->ItemAt(listView->CurrentSelection()))->Text();
-            int items = cardView->CardLayout()->CountItems();
-            int i = 0;
-            while(i < items && strcmp(cardView->CardLayout()->ItemAt(i)->View()->Name(), sel) != 0)
-                i++;
 
-            BLayoutItem* li = cardView->CardLayout()->ItemAt(i);
-            if(li) {
-                int ix = cardView->CardLayout()->IndexOfItem(li);
-                cardView->CardLayout()->SetVisibleItem(ix);
-            }
-            */
+            assert(ks->KeyringByName(sel));
 
+            keyringView->Update(sel);
             SetUIStatus(S_UI_HAS_KEYRING_IN_FOCUS);
             break;
         }
@@ -356,6 +347,50 @@ void KeysWindow::MessageReceived(BMessage* msg)
             }
             break;
         }
+        case B_SIMPLE_DATA:
+        {
+            if(currentKeyring == NULL) {
+                __trace("Error: a keyring must be selected first.\n");
+                break;
+            }
+
+            BFile keyFile;
+            entry_ref ref;
+            int32 index = 0;
+            BMessage importerData;
+            BMessage droppedData;
+            while(msg->FindRef("refs", index, &ref) == B_OK) {
+                index++;
+
+                keyFile.SetTo(&ref, B_READ_ONLY);
+                if(keyFile.InitCheck() != B_OK) { // Drop any invalid references
+                    droppedData.AddRef("refs", &ref);
+                    droppedData.AddString("reason", B_TRANSLATE_COMMENT("Bad file descriptor",
+                        "This is from strerror(B_FILE_ERROR)"));
+                    continue;
+                }
+                BMessage keyFileData;
+                if(keyFileData.Unflatten(&keyFile) == B_OK) {
+                    // Presanitization to drop any non-exported-key flattened BMessage
+                    if(IsExportedKey(&keyFileData))
+                        importerData.AddRef("refs", &ref);
+                    else {
+                        droppedData.AddRef("refs", &ref);
+                        droppedData.AddString("reason", B_TRANSLATE("Message is not an exported key"));
+                    }
+                }
+                else { // Drop any foreign formats
+                    droppedData.AddRef("refs", &ref);
+                    droppedData.AddString("reason", B_TRANSLATE_COMMENT("Data is not a message",
+                        "This is from strerror(B_NOT_A_MESSAGE)"));
+                }
+                keyFile.Unset();
+            }
+
+            MultipleImporterDialogBox* importer = new MultipleImporterDialogBox(this, currentKeyring, &importerData, &droppedData);
+            importer->Show();
+            break;
+        }
         case I_KEY_EXPORT:
         {
             if(!currentKeyring || strcmp(currentKeyring, "") == 0)
@@ -398,32 +433,14 @@ void KeysWindow::MessageReceived(BMessage* msg)
         case I_KEY_REMOVE:
             _RemoveKey(msg);
             break;
+        case I_APP_REMOVE:
+            _RemoveApp(msg);
+            break;
 
         /* Notifications: update views */
-        case M_KEYRING_CREATE:
-            Update();
+        case B_REPLY:
+            _HandleReplyBacks(msg);
             break;
-        case M_KEY_CREATE:
-        case M_KEY_GENERATE_PASSWORD:
-        case M_KEY_IMPORT:
-            if(msg->GetUInt32("result", B_OK) == (uint32)B_NAME_IN_USE) {
-                (new BAlert(B_TRANSLATE("Import key: error"),
-                    B_TRANSLATE("Error: there is already a key with the same "
-                    "identifier as the identifier in the key file."),
-                    B_TRANSLATE("Close"), NULL, NULL, B_WIDTH_AS_USUAL,
-                    B_STOP_ALERT))->Go();
-                break;
-            }
-            [[fallthrough]];
-        case M_KEY_EXPORT:
-        case M_KEY_DELETE:
-        case M_APPAUTH_DELETE:
-        {
-            const void* ptr = msg->GetPointer(kConfigWho);
-            if(ptr)
-                ((KeyringView*)ptr)->Update();
-            break;
-        }
         default:
             BWindow::MessageReceived(msg);
             break;
@@ -432,23 +449,54 @@ void KeysWindow::MessageReceived(BMessage* msg)
 
 void KeysWindow::SetUIStatus(ui_status status, const char* focus)
 {
-    LockLooper();
+	uiStatus = status;
 
-    fMenuKeystore->SetEnabled(true);
+    LockLooper();
 
     switch(status)
     {
+        case S_UI_NO_SERVER:
+        {
+            fMenuKeystore->SetEnabled(false);
+            fMenuKeyring->SetEnabled(false);
+            fKeystorePopMenu->SetEnabled(false);
+            fKeyringItemMenu->SetEnabled(false);
+
+            listView->MakeEmpty();
+            listView->SetEnabled(false);
+            addKeyringButton->SetEnabled(false);
+            removeKeyringButton->SetEnabled(false);
+
+            keyringView->Update(NULL);
+            BMessage reply(B_REPLY);
+            reply.AddBool("keyring_unavailable", true);
+            BMessenger(keyringView).SendMessage(&reply);
+            break;
+        }
+        case S_UI_HAS_SERVER:
+            fMenuKeystore->SetEnabled(true);
+            fKeystorePopMenu->SetEnabled(true);
+            fKeyringItemMenu->SetEnabled(true);
+            listView->SetEnabled(true);
+            addKeyringButton->SetEnabled(true);
+            [[fallthrough]];
         case S_UI_REMOVE_KEYRING_FOCUS:
             listView->DeselectAll();
             [[fallthrough]];
         case S_UI_NO_KEYRING_IN_FOCUS:
+        {
             currentKeyring = NULL;
 
             fRemKeyring->SetEnabled(false);
             fMenuKeyring->SetEnabled(false);
             removeKeyringButton->SetEnabled(false);
             fIsLockedKeyring->SetMarked(false);
+            keyringView->Update(NULL);
+            BMessage reply(B_REPLY);
+            reply.AddBool("keyring_unavailable", true);
+            BMessenger(keyringView).SendMessage(&reply);
             break;
+        }
         case S_UI_SET_KEYRING_FOCUS:
         {
             BStringItem* item = nullptr;
@@ -459,139 +507,140 @@ void KeysWindow::SetUIStatus(ui_status status, const char* focus)
         }
             [[fallthrough]];
         case S_UI_HAS_KEYRING_IN_FOCUS:
+        {
             currentKeyring = ((BStringItem*)listView->ItemAt(listView->CurrentSelection()))->Text();
 
             fRemKeyring->SetEnabled(true);
             fMenuKeyring->SetEnabled(true);
             removeKeyringButton->SetEnabled(true);
             fIsLockedKeyring->SetMarked(!(ks->KeyringByName(currentKeyring)->IsUnlocked()));
+            keyringView->Update(currentKeyring);
+            BMessage reply(B_REPLY);
+            reply.AddBool("keyring_changed", true);
+            BMessenger(keyringView).SendMessage(&reply);
             break;
+        }
         default:
             break;
     }
 
-    fMenuKeystore->SetEnabled(true);
-    mbMain->FindItem(I_KEYSTORE_BACKUP)->SetEnabled(false);
-    mbMain->FindItem(I_KEYSTORE_RESTORE)->SetEnabled(false);
-    fKeystorePopMenu->SetEnabled(true);
-    fKeyringItemMenu->SetEnabled(true);
+    // mbMain->FindItem(I_KEYSTORE_BACKUP)->SetEnabled(false);
+    // mbMain->FindItem(I_KEYSTORE_RESTORE)->SetEnabled(false);
 
     UnlockLooper();
 }
 
 ui_status KeysWindow::GetUIStatus()
 {
-    return uist;
+    return uiStatus;
 }
 
 void KeysWindow::Update(const void* data)
 {
-    _FullReload(ks);
-    SetUIStatus(S_UI_NO_KEYRING_IN_FOCUS);
-    if(data != nullptr)
-        if(ks->KeyringByName(reinterpret_cast<const char*>(data))) {
-            BStringItem* item = find_item(listView, reinterpret_cast<const char*>(data));
-            if(item) {
-                listView->Select(listView->IndexOf(item));
-                // _FindKeyringView(reinterpret_cast<const char*>(data))->Update();
-            }
+	_InitAppData(ks);
+    if(data != nullptr && ks->KeyringByName((const char*)data)) {
+        fprintf(stderr, "Received: %s\n", (const char*)data);
+        BStringItem* item = find_item(listView, reinterpret_cast<const char*>(data));
+        if(item) {
+            listView->Select(listView->IndexOf(item));
+            SetUIStatus(S_UI_HAS_KEYRING_IN_FOCUS);
         }
-}
-
-void KeysWindow::UpdateAsEmpty()
-{
-    LockLooper();
-
-    listView->MakeEmpty();
-     for(auto& view : keyringviewlist) {
-        cardView->RemoveChild(view);
-        delete view;
     }
-    keyringviewlist.clear();
-
-    fMenuKeystore->SetEnabled(false);
-    fMenuKeyring->SetEnabled(false);
-    fKeystorePopMenu->SetEnabled(false);
-    fKeyringItemMenu->SetEnabled(false);
-
-    UnlockLooper();
+    else
+        SetUIStatus(S_UI_NO_KEYRING_IN_FOCUS);
 }
 
 // #pragma mark -
 
 void KeysWindow::_InitAppData(KeystoreImp* ks)
 {
+    __trace("CALLED.\n");
     LockLooper();
-
+    listView->MakeEmpty();
     for(int i = 0; i < ks->KeyringCount(); i++) {
-        KeyringView* view = new KeyringView(BRect(0, 0, 100, 100),
-            ks->KeyringAt(i)->Identifier(), ks);
-        keyringviewlist.push_back(view);
         listView->AddItem(new BStringItem(ks->KeyringAt(i)->Identifier()));
-        cardView->AddChild(view);
     }
-
     // Preselect something to avoid protection faults when selecting a key
     //  without a keyring selected in the other view
     if(listView->CountItems() > 0) {
         currentKeyring = ((BStringItem*)listView->ItemAt(0))->Text();
         listView->Select(0);
-        cardView->CardLayout()->SetVisibleItem(0);
+
         if(listView->IsItemSelected(listView->CurrentSelection()))
             fMenuKeyring->SetEnabled(true);
     }
-    else {
-        currentKeyring = NULL;
-    }
-
     UnlockLooper();
 }
 
-void KeysWindow::_FullReload(KeystoreImp* ks)
+void KeysWindow::_HandleReplyBacks(BMessage* reply)
 {
-    LockLooper();
-
-    listView->MakeEmpty();
-    for(auto& view : keyringviewlist) {
-        cardView->RemoveChild(view);
-        delete view;
+    BString alertText;
+    switch(reply->GetInt32(kConfigWhat, B_REPLY))
+    {
+        case I_SERVER_RESTART:
+            SetUIStatus(S_UI_HAS_SERVER);
+            return; // No need to report errors
+        case I_SERVER_STOP:
+            SetUIStatus(S_UI_NO_SERVER);
+            return; // No need to report errors
+        case M_KEYSTORE_BACKUP:
+            alertText.SetTo("Keystore backup error: ");
+            break;
+        case M_KEYSTORE_RESTORE:
+            alertText.SetTo("Keystore restore error: ");
+            break;
+        case M_KEYRING_CREATE:
+            alertText.SetTo("Keyring creation error: ");
+            break;
+        case M_KEYRING_LOCK:
+            alertText.SetTo("Keyring lockdown error: ");
+            break;
+        case M_KEYRING_SET_LOCKKEY:
+            alertText.SetTo("Keyring lock key addition error: ");
+            break;
+        case M_KEYRING_UNSET_LOCKKEY:
+            alertText.SetTo("Keyring lock key deletion error: ");
+            break;
+        case M_KEYRING_DELETE:
+            alertText.SetTo("Keyring deletion error: ");
+            break;
+        case M_KEY_CREATE:
+            alertText.SetTo("Key creation error: ");
+            break;
+        case M_KEY_GENERATE_PASSWORD:
+            alertText.SetTo("Key generation error: ");
+            break;
+        case M_KEY_IMPORT:
+            alertText.SetTo("Key import error: ");
+            break;
+        case M_KEY_EXPORT:
+            alertText.SetTo("Key export error: ");
+            break;
+        case M_KEY_DELETE:
+            alertText.SetTo("Key deletion error: ");
+            break;
+        case M_APP_DELETE:
+            alertText.SetTo("Application deletion error: ");
+            break;
+        default:
+            alertText.SetTo("Reply back: unknown...\n");
+            break;
     }
-    keyringviewlist.clear();
 
-    UnlockLooper();
+    alertText.Append(strerror(reply->GetInt32(kConfigResult, 0)));
 
-    _InitAppData(ks);
-}
-
-KeyringView* KeysWindow::_FindKeyringView(const char* target)
-{
-    if(!target)
-        return nullptr;
-
-    bool found = false;
-    auto it = keyringviewlist.begin();
-    while(it != keyringviewlist.end() && !found) {
-        if(strcmp((*it)->Name(), target) == 0)
-            found = true;
-        else
-            ++it;
-    }
-    if(*it)
-        return *it;
-    else
-        return nullptr;
-}
-
-void KeysWindow::_NotifyKeyringView(const char* target)
-{
-    KeyringView* view = _FindKeyringView(target);
-    if(view) {
-        fprintf(stderr, "Updating view: %s\n", view->Name());
-        view->Update();
-    }
+    BAlert* alert = new BAlert;
+    alert->SetText(alertText.String());
+    alert->SetTitle(B_TRANSLATE_COMMENT("Error", "Title of error alerts"));
+    alert->SetType(alert_type::B_STOP_ALERT);
+    alert->AddButton(B_TRANSLATE("Close"));
+    alert->Go();
 }
 
 // #pragma mark - Keystore management calls
+
+#undef B_TRANSLATION_CONTEXT
+#define B_TRANSLATION_CONTEXT "Keystore info dialog box"
 
 void KeysWindow::_KeystoreInfo()
 {
@@ -654,17 +703,12 @@ status_t KeysWindow::_RemoveKeyring(const char* target)
     if(result == 1) // Nothing to be done if user cancels
         return B_OK;
 
-    BMessage request(M_KEYRING_DELETE), reply;
+    BMessage request(M_KEYRING_DELETE);
     request.AddPointer(kConfigWho, this);
     request.AddString(kConfigKeyring, keyring);
-    be_app_messenger.SendMessage(&request, &reply);
+    be_app_messenger.SendMessage(&request);
 
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK && status == B_OK) {
-        Update();
-    }
-
-    return status;
+    return B_OK;
 }
 
 void KeysWindow::_LockKeyring()
@@ -672,13 +716,9 @@ void KeysWindow::_LockKeyring()
     if(!currentKeyring || strcmp(currentKeyring, "") == 0)
         return;
 
-    BMessage request(M_KEYRING_LOCK), reply;
+    BMessage request(M_KEYRING_LOCK);
     request.AddString(kConfigKeyring, currentKeyring);
-    be_app_messenger.SendMessage(&request, &reply);
-
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK && status == B_OK)
-        SetUIStatus(S_UI_HAS_KEYRING_IN_FOCUS);
+    be_app_messenger.SendMessage(&request);
 }
 
 void KeysWindow::_SetKeyringLockKey()
@@ -705,13 +745,9 @@ void KeysWindow::_RemoveKeyringLockKey()
     if(result == 1) // Nothing to be done if user cancels
         return /*B_OK*/;
 
-    BMessage request(M_KEYRING_UNSET_LOCKKEY), reply;
+    BMessage request(M_KEYRING_UNSET_LOCKKEY);
     request.AddString(kConfigKeyring, currentKeyring);
-    be_app_messenger.SendMessage(&request, &reply);
-
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK && status == B_OK)
-        SetUIStatus(S_UI_HAS_KEYRING_IN_FOCUS);
+    be_app_messenger.SendMessage(&request);
 }
 
 void KeysWindow::_ClearKeyring()
@@ -733,21 +769,17 @@ void KeysWindow::_ClearKeyring()
     if(result == 1)
         return;
 
-    BMessage request(M_KEYRING_WIPE_CONTENTS), reply;
+    BMessage request(M_KEYRING_WIPE_CONTENTS);
     request.AddString(kConfigKeyring, currentKeyring);
-    be_app_messenger.SendMessage(&request, &reply);
-
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK && status == B_OK)
-        Update((const void*)currentKeyring);
+    be_app_messenger.SendMessage(&request);
 }
 
 void KeysWindow::_KeyringInfo()
 {
-    if(!currentKeyring || strcmp(currentKeyring, "") == 0)
+    if(!currentKeyring ||
+    strcmp(currentKeyring, "") == 0 ||
+    listView->CurrentSelection(0) == -1)
         return;
-
-    SetUIStatus(S_UI_HAS_KEYRING_IN_FOCUS);
 
     KeyringViewerDialogBox* dlg = new KeyringViewerDialogBox(this, BRect(), ks, currentKeyring);
     if(dlg) dlg->Show();
@@ -769,7 +801,7 @@ void KeysWindow::_AddKey(BKeyType t, AKDlgModel model)
     }
 
     AddKeyDialogBox* dlg = new AddKeyDialogBox(this, BRect(20, 20, 200, 200),
-        currentKeyring, t, _FindKeyringView(currentKeyring), model);
+        currentKeyring, t, keyringView, model);
     if(dlg) dlg->Show();
 }
 
@@ -778,30 +810,12 @@ void KeysWindow::_ImportKey(BMessage* msg)
     if(!currentKeyring || strcmp(currentKeyring, "") == 0)
         return;
 
-    BMessage request(M_KEY_IMPORT), reply;
+    BMessage request(M_KEY_IMPORT);
     request.AddString(kConfigKeyring, currentKeyring);
     entry_ref ref;
     (void)msg->FindRef("refs", &ref);
     request.AddRef("refs", &ref);
-    request.AddPointer(kConfigWho, _FindKeyringView(currentKeyring));
-    be_app_messenger.SendMessage(&request, &reply);
-
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK) {
-        if(status == B_OK) {
-            _NotifyKeyringView(currentKeyring);
-            SetUIStatus(S_UI_HAS_KEYRING_IN_FOCUS);
-        }
-        else if(status == B_NAME_IN_USE) {
-            (new BAlert(B_TRANSLATE("Import key: error"),
-                B_TRANSLATE("Error: there is already a key with the same "
-                "identifier as the identifier in the key file."),
-                B_TRANSLATE("Close"), NULL, NULL, B_WIDTH_AS_USUAL,
-                B_STOP_ALERT))->Go();
-        }
-    }
-    else
-        fprintf(stderr, "not found status\n");
+    be_app_messenger.SendMessage(&request);
 }
 
 void KeysWindow::_ExportKey(BMessage* msg)
@@ -821,16 +835,6 @@ void KeysWindow::_ExportKey(BMessage* msg)
     request.AddString(kConfigKeyName, key.String());
     request.AddString(kConfigKeyAltName, secondary.String());
     be_app_messenger.SendMessage(&request, &reply);
-
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK && status == B_OK) {
-        _NotifyKeyringView(keyring.String());
-        SetUIStatus(S_UI_SET_KEYRING_FOCUS, keyring.String());
-    } else {
-        (new BAlert(B_TRANSLATE("Error"),
-        B_TRANSLATE("An error has occurred. The key could not be successfully exported."),
-        B_TRANSLATE("Close"), NULL, NULL, B_WIDTH_AS_USUAL, B_STOP_ALERT))->Go();
-    }
 }
 
 void KeysWindow::_RemoveKey(BMessage* msg)
@@ -841,16 +845,21 @@ void KeysWindow::_RemoveKey(BMessage* msg)
     if(keyring.IsEmpty() || key.IsEmpty())
         return;
 
-    BMessage request(M_KEY_DELETE), reply;
+    BMessage request(M_KEY_DELETE);
     request.AddString(kConfigKeyring, keyring.String());
     request.AddString(kConfigKeyName, key.String());
     request.AddString(kConfigKeyAltName, secondary.String());
-    request.AddPointer(kConfigWho, _FindKeyringView(keyring.String()));
-    be_app_messenger.SendMessage(&request, &reply);
+    be_app_messenger.SendMessage(&request);
+}
 
-    status_t status = B_ERROR;
-    if(reply.FindInt32(kConfigResult, (int32*)&status) == B_OK && status == B_OK)
-        _NotifyKeyringView(keyring.String());
+void KeysWindow::_RemoveApp(BMessage* msg)
+{
+    __trace("Request: delete app %s from %s keyring.\n",
+        msg->GetString(kConfigSignature), msg->GetString(kConfigKeyring));
+    BMessage request(M_APP_DELETE);
+    request.AddString(kConfigKeyring, msg->GetString(kConfigKeyring));
+    request.AddString(kConfigSignature, msg->GetString(kConfigSignature));
+    be_app->PostMessage(&request);
 }
 
 // #pragma mark - UI creation
@@ -860,11 +869,14 @@ void KeysWindow::_RemoveKey(BMessage* msg)
 
 BMenuBar* KeysWindow::_InitMenu()
 {
+    BMenuItem* backupDBItem = new BMenuItem(B_TRANSLATE("Backup keystore database" B_UTF8_ELLIPSIS), new BMessage(I_KEYSTORE_BACKUP));
+    BMenuItem* restoreDBItem = new BMenuItem(B_TRANSLATE("Restore keystore database snapshot" B_UTF8_ELLIPSIS), new BMessage(I_KEYSTORE_RESTORE));
+
     BMenuBar* menu = new BMenuBar("mb_main");
     BLayoutBuilder::Menu<>(menu)
         .AddMenu(B_TRANSLATE(kAppName))
             .AddItem(B_TRANSLATE("Restart keystore server"), I_SERVER_RESTART)
-            .AddItem(B_TRANSLATE("Stop server"), 'stop')
+            .AddItem(B_TRANSLATE("Stop server"), I_SERVER_STOP)
             .AddSeparator()
             .AddItem(B_TRANSLATE("About" B_UTF8_ELLIPSIS), I_ABOUT)
             .AddSeparator()
@@ -874,8 +886,8 @@ BMenuBar* KeysWindow::_InitMenu()
             .AddItem(B_TRANSLATE("Create keyring" B_UTF8_ELLIPSIS), I_KEYRING_ADD, '+')
             .AddItem(B_TRANSLATE("Remove keyring" B_UTF8_ELLIPSIS), I_KEYRING_REMOVE, '-')
             .AddSeparator()
-            .AddItem(B_TRANSLATE("Backup keystore database" B_UTF8_ELLIPSIS), I_KEYSTORE_BACKUP)
-            .AddItem(B_TRANSLATE("Restore keystore database snapshot" B_UTF8_ELLIPSIS), I_KEYSTORE_RESTORE)
+            // .AddItem(backupDBItem)
+            // .AddItem(restoreDBItem)
             .AddItem(B_TRANSLATE("Wipe keystore database" B_UTF8_ELLIPSIS), I_KEYSTORE_CLEAR)
             .AddSeparator()
             .AddItem(B_TRANSLATE("Keystore statistics" B_UTF8_ELLIPSIS), I_KEYSTORE_INFO)
@@ -903,10 +915,26 @@ BMenuBar* KeysWindow::_InitMenu()
 
     fRemKeyring = menu->FindItem(I_KEYRING_REMOVE);
     fIsLockedKeyring = menu->FindItem(I_KEYRING_LOCK);
-    menu->FindItem(I_KEYSTORE_BACKUP)->SetEnabled(false);
-    menu->FindItem(I_KEYSTORE_RESTORE)->SetEnabled(false);
+    backupDBItem->SetEnabled(false);
+    restoreDBItem->SetEnabled(false);
     fMenuKeystore = menu->FindItem(B_TRANSLATE("Keystore"));
     fMenuKeyring = menu->FindItem(B_TRANSLATE("Keyring"));
+
+    fMenuKey = new BMenu(B_TRANSLATE("Key"));
+    BLayoutBuilder::Menu<>(fMenuKey)
+        .AddItem(B_TRANSLATE("Export" B_UTF8_ELLIPSIS), KRV_KEYS_EXPORT)
+        .AddSeparator()
+        .AddItem(B_TRANSLATE("View data" B_UTF8_ELLIPSIS), KRV_KEYS_VWDATA)
+        .AddItem(B_TRANSLATE("Copy secret"), KRV_KEYS_COPY)
+    .End();
+    // menu->AddItem(fMenuKey);
+
+    fAppKey = new BMenu(B_TRANSLATE("Application"));
+    BLayoutBuilder::Menu<>(fAppKey)
+        .AddItem(B_TRANSLATE("View information" B_UTF8_ELLIPSIS), KRV_APPS_VWDATA)
+        .AddItem(B_TRANSLATE("Copy signature"), KRV_APPS_COPY)
+    .End();
+    // menu->AddItem(fAppKey);
 
     fRemKeyring->SetEnabled(false);
     fMenuKeyring->SetEnabled(false);
@@ -916,15 +944,23 @@ BMenuBar* KeysWindow::_InitMenu()
 
 BPopUpMenu* KeysWindow::_InitKeystorePopUpMenu()
 {
+    BMenuItem* backupDBItem = new BMenuItem(B_TRANSLATE("Backup keystore database" B_UTF8_ELLIPSIS), new BMessage(I_KEYSTORE_BACKUP));
+    BMenuItem* restoreDBItem = new BMenuItem(B_TRANSLATE("Restore keystore database snapshot" B_UTF8_ELLIPSIS), new BMessage(I_KEYSTORE_RESTORE));
+
     BPopUpMenu* menu = new BPopUpMenu("pum_ks", false, false);
     BLayoutBuilder::Menu<>(menu)
         .AddItem(B_TRANSLATE("Create keyring" B_UTF8_ELLIPSIS), I_KEYRING_ADD, '+')
         .AddSeparator()
-        .AddItem(B_TRANSLATE("Backup keystore database" B_UTF8_ELLIPSIS), I_KEYSTORE_BACKUP)
+        // .AddItem(backupDBItem)
+        // .AddItem(restoreDBItem)
         .AddItem(B_TRANSLATE("Wipe keystore database" B_UTF8_ELLIPSIS), I_KEYSTORE_CLEAR)
         .AddSeparator()
         .AddItem(B_TRANSLATE("Keystore statistics" B_UTF8_ELLIPSIS), I_KEYSTORE_INFO)
     .End();
+
+    backupDBItem->SetEnabled(false);
+    restoreDBItem->SetEnabled(false);
+
     return menu;
 }
 

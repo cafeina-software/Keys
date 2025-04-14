@@ -1,3 +1,42 @@
+# Keys 0.1.1
+
+New unstable version with some additions and many under-the-hoods works that
+greatly increased the application's stability and reliability.
+
+* New features:
+
+- (app): added scripting support for some keyring operations. This can be
+  verified with "hey Keys getsuites". This could eventually be expanded to
+  add more supported operations, both about keystore operations and the
+  application's functionality management.
+- (ui): dragging and dropping a set of exported keys files on to the keyring
+  view with a keyring selected now allows to bulk import them with a dialog box.
+  Invalid files will be ignored. This should eventually be merged with the
+  option from the menu Keyring->Import key….
+
+* Improvements:
+
+- (documentation): expanded with some newer features added after the last time
+  the documentation was written (such as server management, keyring lockdown, or
+  key import and export), as well as some updates to the existing ones.
+- (localization): updated English and Spanish catalogs.
+- (model): fixes for some status returns that mistakenly were reporting error
+  when there was a success for some operations such as key insertion and removal.
+- (model): additional checks for invalid values in search templates.
+- (main): expanded help string.
+- (ui model): rework of UI model and internal messaging system in application,
+  window and keyring view. Instead of creating and mantaining a set of keyring
+  views for each keyring, which required to have a needlessly complex system for
+  search and notification, it now uses a single keyring view that is emptied and
+  reloaded to work with the data of the keyring when it is selected.
+- (app, ui): it can open with a keyring in focus with the command line flag
+  "--keyring KeyringName".
+- (app): it can reset the settings before the initialization with the command
+  line flag "--reset-settings".
+- (keyring view): removed the expensive automatic max-length calculator of
+  column lengths. Under certain circumstances it could lead to crashes (mainly
+  after the newer ui model rework).
+
 # Keys 0.1.0
 
 New unstable version with more behind-the-doors changes to

@@ -2,13 +2,17 @@
  * Copyright 2024, cafeina <cafeina@world>
  * All rights reserved. Distributed under the terms of the MIT license.
  */
-#include <StorageKit.h>
+#include <Application.h>
 #include <Catalog.h>
 #include <DateTime.h>
+#include <FindDirectory.h>
 #include <KeyStore.h>
+#include <NodeMonitor.h>
+#include <Path.h>
 #include <PropertyInfo.h>
 #include <private/interface/AboutWindow.h>
 #include <cstdio>
+#include <unordered_map>
 #include "KeysApplication.h"
 #include "KeysWindow.h"
 #include "../KeysDefs.h"
@@ -65,15 +69,23 @@ static property_info kKeysProperties[] = {
 enum { PROPERTY_SERVER, PROPERTY_KEYRINGS, PROPERTY_KEYRING_READ, PROPERTY_KEYRING_CREATE, PROPERTY_KEYRING_DELETE };
 const char* kKeyStoreServerSignature = "application/x-vnd.Haiku-keystore_server";
 
+// #pragma mark -
+
 KeysApplication::KeysApplication()
-: BApplication(kAppSignature), frame(BRect(50, 50, 720, 480)),
-  ks(new KeystoreImp())
+: BApplication(kAppSignature),
+  window(NULL),
+  frame(BRect(50, 50, 720, 480)),
+  ks(new KeystoreImp()),
+  inFocus(NULL)
 {
     /* Start the server if not yet started */
-    _RestartServer(false);
+    StartServer(false);
 
-    _InitAppData(ks, &keystore);
-    _LoadSettings();
+    /* Data initialization */
+    LoadSettings();
+    _InitAppData(&currentSettings);
+    _InitKeystoreData(ks, &keystore);
+
     window = new KeysWindow(frame, ks, &keystore);
 
     /* Node monitor */
@@ -89,13 +101,23 @@ KeysApplication::~KeysApplication()
     delete ks;
 }
 
+bool KeysApplication::QuitRequested()
+{
+    SaveSettings();
+    return BApplication::QuitRequested();
+}
+
 void KeysApplication::ReadyToRun()
 {
+    BApplication::ReadyToRun();
+
     if(!BScreen().Frame().Contains(frame)) {
         // If the window goes offscreen, it moves it until it is fully visible
         window->MoveOnScreen(B_MOVE_IF_PARTIALLY_OFFSCREEN);
         frame = window->Frame();
     }
+    if(inFocus) // Focus on the desired keyring (if it exists)
+        window->SetUIStatus(S_UI_SET_KEYRING_FOCUS, inFocus);
     window->Show();
 }
 
@@ -143,10 +165,10 @@ void KeysApplication::MessageReceived(BMessage* msg)
             break;
         }
         case I_SERVER_RESTART:
-            _RestartServer(false, false);
+            StartServer(false, false);
             break;
         case I_SERVER_STOP:
-            _StopServer(true);
+            StopServer(true);
             break;
 
         case M_KEYSTORE_BACKUP:
@@ -185,8 +207,18 @@ void KeysApplication::MessageReceived(BMessage* msg)
             GeneratePwdKey(msg);
             break;
         case M_KEY_IMPORT:
-            ImportKey(msg);
+        {
+            int32 i = 0;
+            entry_ref ref;
+            while(msg->FindRef("refs", i, &ref) == B_OK) {
+                BMessage request(msg->what);
+                request.AddString(kConfigKeyring, msg->GetString(kConfigKeyring));
+                request.AddRef("refs", &ref);
+                ImportKey(&request);
+                i++;
+            }
             break;
+        }
         case M_KEY_EXPORT:
             ExportKey(msg);
             break;
@@ -194,19 +226,84 @@ void KeysApplication::MessageReceived(BMessage* msg)
             RemoveKey(msg);
             break;
 
-        case M_APPAUTH_DELETE:
+        case M_APP_DELETE:
             RemoveApp(msg);
             break;
         default:
-            BApplication::MessageReceived(msg);
-            break;
+            return BApplication::MessageReceived(msg);
     }
 }
 
-bool KeysApplication::QuitRequested()
+void KeysApplication::ArgvReceived(int32 argc, char** argv)
 {
-    _SaveSettings();
-    return BApplication::QuitRequested();
+    /*
+        Values for params:
+
+        --keyring           <string>    Opens with <keyring> in focus.
+        --reset-settings    <NULL>      Reset settings before init.
+
+        Params not parsed here (only in main()):
+
+        --help
+        --version
+    */
+    if(argc == 1)
+        return BApplication::ArgvReceived(argc, argv);
+
+    std::unordered_map<const char*, const char*> paramMap;
+    const char* paramName = NULL;
+    const char* paramValue = NULL;
+    for(int32 i = 1; i < argc; i++) { // Ignore application executable name
+        if(strncmp(argv[i], "--", strlen("--")) == 0) { // Found a param
+            if(paramName == NULL) {
+                paramName = argv[i];
+                continue;
+            }
+            else { // There is already a param waiting, let's emplace it to deal with the new one
+                paramMap.emplace(std::make_pair(paramName, paramValue));
+                paramName = argv[i];
+            }
+        }
+        else { // Found value, push back if...
+            if(paramName) { // there is a param name
+                paramValue = argv[i];
+                paramMap.emplace(std::make_pair(paramName, paramValue));
+            }
+            else { // otherwise ignore a paramValue without a paramName
+                __trace("Param value \'%s\': not processed (cannot have a key value without a key name).\n", argv[i]);
+                __trace("To pass more than one value, please use \'<paramName> \"<paramValue1>,<paramValue2>,...\"\'.\n");
+                __trace("Please take into account that currently there are no parameters supporting multiple values.\n");
+            }
+            paramName = NULL;
+            paramValue = NULL;
+        }
+    }
+    if(paramName != NULL) // There may be waiting a last one, so do not miss it
+        paramMap.emplace(std::make_pair(paramName, paramValue));
+
+    for(const auto& it : paramMap) {
+        if(strcmp(it.first, "--keyring") == 0) {// Parse it to be dealt by ReadyToRun()
+            if(it.second && ks->KeyringByName(it.second)) {
+                // Do not do anything if it is NULL or there is not a keyring named <it.second>
+                __trace("Info: in focus: \'%s\'.\n", it.second);
+                inFocus = it.second;
+            }
+        }
+        else if(strcmp(it.first, "--reset-settings") == 0) { // No need of value
+            CreateSettings(&currentSettings);
+        }
+        else
+            __trace("Error: unrecognized parameter: \'%s\'.\n", it.first);
+    }
+
+    return BApplication::ArgvReceived(argc, argv);
+}
+
+void KeysApplication::RefsReceived(BMessage* msg)
+{
+    // There is not currently any usage for this
+
+    BApplication::RefsReceived(msg);
 }
 
 #undef B_TRANSLATION_CONTEXT
@@ -270,6 +367,8 @@ void KeysApplication::AboutRequested()
 	about->Show();
 }
 
+// #pragma mark - Scripting support
+
 status_t KeysApplication::GetSupportedSuites(BMessage* msg)
 {
     msg->AddString("suites", kAppSuitesSgn);
@@ -305,7 +404,7 @@ void KeysApplication::HandleScripting(BMessage* msg)
             case PROPERTY_SERVER:
             {
                 if(msg->what == B_EXECUTE_PROPERTY) {
-                    status = _RestartServer(true, true);
+                    status = StartServer(true, true);
                 }
                 break;
             }
@@ -403,33 +502,184 @@ void KeysApplication::HandleScripting(BMessage* msg)
     }
 }
 
-// #pragma mark -
+// #pragma mark - Settings
 
-void KeysApplication::KeystoreBackup(BMessage* msg)
+void KeysApplication::CreateSettings(BMessage* archive)
 {
+    archive->AddRect("frame", BRect(50, 50, 720, 480));
+}
+
+status_t KeysApplication::LoadSettings()
+{
+    status_t status = B_OK;
+    BPath usrSettingsPath;
+    if((status = find_directory(B_USER_SETTINGS_DIRECTORY, &usrSettingsPath)) != B_OK)
+        __trace("Error: user's settings directory could not be found.\n");
+    else {
+        usrSettingsPath.Append(kAppSettings, true);
+        BFile file(usrSettingsPath.Path(), B_READ_ONLY);
+        if((status = file.InitCheck()) != B_OK)
+            __trace("Error: settings file could not be located.\n");
+        else {
+            if((status = currentSettings.Unflatten(&file)) != B_OK)
+                __trace("Error: the file \'%s\' could not be unflattened.\n",
+                    usrSettingsPath.Path());
+        }
+    }
+
+    if(status != B_OK) {
+        // Somewhere in the steps before failed, let's use a temporary value set
+        CreateSettings(&currentSettings);
+    }
+
+    return status;
+}
+
+status_t KeysApplication::SaveSettings()
+{
+    status_t status = B_OK;
+
+    if(currentSettings.ReplaceRect("frame", window->Frame()) != B_OK)
+        currentSettings.AddRect("frame", window->Frame());
+
+    BPath usrSettingsPath;
+    if((status = find_directory(B_USER_SETTINGS_DIRECTORY, &usrSettingsPath)) != B_OK) {
+        __trace("Error: user's settings directory could not be found.\n");
+        return status;
+    }
+
+    usrSettingsPath.Append(kAppSettings, true);
+    BFile file(usrSettingsPath.Path(), B_READ_WRITE | B_CREATE_FILE | B_ERASE_FILE);
+    if((status = file.InitCheck()) != B_OK) {
+        __trace("Error: settings file \'%s\' could not be initialized.", usrSettingsPath.Path());
+        return status;
+    }
+    file.SetPermissions(DEFFILEMODE);
+
+    if((status = currentSettings.Flatten(&file)) != B_OK) {
+        __trace("Error: settings data could not be written.\n");
+        return status;
+    }
+
+    return status;
+}
+
+// #pragma mark - Server operations
+
+status_t KeysApplication::StartServer(bool rebuildModel, bool forceRestart)
+{
+    status_t status = B_OK;
+
+    if(be_roster->IsRunning(kKeyStoreServerSignature) && forceRestart)
+        StopServer();
+
+    BMessenger msgr(kKeyStoreServerSignature);
+    if(!msgr.IsValid()) {
+        __trace("Info: Keystore server is not currently running. Starting it...\n");
+        status = be_roster->Launch(kKeyStoreServerSignature);
+        if(status != B_OK && status != B_ALREADY_RUNNING) {
+            __trace("Error: The server could not be launched successfully.\n");
+            return B_ERROR;
+        }
+        // Here we should rebuild the data model
+        if(rebuildModel) {
+            __trace("Info: Rebuilding model...\n");
+            // _RebuildModel();
+        }
+    }
+
+    if(window != nullptr) { // Only notify to the window if there is a window
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, I_SERVER_RESTART);
+        window->PostMessage(&reply);
+    }
+
+    return status;
+}
+
+status_t KeysApplication::StopServer(bool rebuildModel)
+{
+    if(be_roster->IsRunning(kKeyStoreServerSignature)) {
+        team_id team = be_roster->TeamFor(kKeyStoreServerSignature);
+        if(team == B_ERROR)
+            return B_BAD_TEAM_ID;
+
+        fprintf(stderr, "Info: trying to stop keystore server...\n");
+        BMessenger msgr(kKeyStoreServerSignature, team);
+        msgr.SendMessage(B_QUIT_REQUESTED);
+
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, I_SERVER_STOP);
+        window->PostMessage(&reply);
+
+        thServerMonitor = spawn_thread(_CallServerMonitor, "Keystore server monitor",
+            B_NORMAL_PRIORITY, this);
+        resume_thread(thServerMonitor);
+
+        // here we should rebuild the data model
+        if(rebuildModel) {
+            fprintf(stderr, "Info: Rebuilding model...\n");
+            ks->Reset();
+
+            if(window != nullptr) { // Only notify to the window if there is a window
+                BMessage reply(B_REPLY);
+                reply.AddInt32(kConfigWhat, I_SERVER_STOP);
+                window->PostMessage(&reply);
+            }
+        }
+    }
+    return B_OK;
+}
+
+// #pragma mark - Keystore operations
+
+status_t KeysApplication::KeystoreBackup(BMessage* msg)
+{
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     uint32 method;
     BString password;
     if(msg->FindUInt32("method", &method) != B_OK ||
-    msg->FindString("password", &password) != B_OK)
-        return;
+    msg->FindString("password", &password) != B_OK) {
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
+    }
 
+    status_t status = B_ERROR;
     switch(method) {
         case 'copy': {
-            DoPlainKeystoreBackup();
-            return;
+            status = DoPlainKeystoreBackup();
+            break;
         }
 // #if defined(USE_OPENSSL)
         case 'ssl ':
-            DoEncryptedKeystoreBackup(password.String());
-            return;
+            status = DoEncryptedKeystoreBackup(password.String());
+            break;
 // #endif
         default:
-            return;
+            break;
     }
+
+    if(status != B_OK) { // Notify any errors
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
+
+    return status;
 }
 
-void KeysApplication::KeystoreRestore(BMessage* msg)
+status_t KeysApplication::KeystoreRestore(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     entry_ref ref;
     BString pass;
     msg->FindRef("refs", &ref);
@@ -440,8 +690,19 @@ void KeysApplication::KeystoreRestore(BMessage* msg)
     data.Unflatten(&datafile);
     pass = data.GetString("pass");
 
-    if(RestoreEncryptedKeystoreBackup(path.Path(), pass.String()) == B_OK)
-        _RestartServer(true);
+    status_t status = RestoreEncryptedKeystoreBackup(path.Path(), pass.String());
+    if(status == B_OK) {
+        StartServer(true);
+        window->Update();
+    }
+    else { // Notify any errors
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
+
+    return status;
 }
 
 void KeysApplication::WipeKeystoreContents(BMessage* msg)
@@ -462,60 +723,93 @@ void KeysApplication::WipeKeystoreContents(BMessage* msg)
     window->Update();
 }
 
-void KeysApplication::AddKeyring(BMessage* msg)
+// #pragma mark - Keyring operations
+
+status_t KeysApplication::AddKeyring(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK) {
-        fprintf(stderr, "Error: bad data. No keyring name received.\n");
-        return;
+        __trace("Error: %s. No keyring name received.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     if(ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: the keyring name received is already in use.\n");
-        return;
+        __trace("Error: %s.\n", strerror(B_NAME_IN_USE));
+        return B_NAME_IN_USE;
     }
 
-    if(ks->AddKeyring(keyring.String(), true) != B_OK) {
-        fprintf(stderr, "Error: the keyring could not be created in the store.\n");
-        return;
+    status_t status = ks->AddKeyring(keyring.String(), true);
+    if(status == B_OK) {
+        // we could here refill the database to retrieve entries under the keyring,
+        //  but at this point, the keyring is empty anyways, so let's save cycles
+        __trace("Info: keyring \"%s\" was successfully created.\n", keyring.String());
+        window->Update((const void*)keyring.String()); // Update in focus
     }
-    // we could here refill the database to retrieve entries under the keyring,
-    //  but at this point, the keyring is empty anyways, so let's save cycles
-    fprintf(stderr, "Info: keyring \"%s\" was successfully created.\n", keyring.String());
+    else {
+        __trace("Error: the keyring could not be created in the store.\n");
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
-    void* ptr = nullptr;
-    if(msg->FindPointer(kConfigWho, &ptr) == B_OK)
-        ((KeysWindow*)ptr)->Update((const void*)keyring.String());
+    return status;
 }
 
-void KeysApplication::LockKeyring(BMessage* msg)
+status_t KeysApplication::LockKeyring(BMessage* msg)
 {
+	if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     status_t status = ks->KeyringByName(keyring.String())->Lock();
+    if(status == B_OK) {
+        __trace("Info: keyring \"%s\" was successfully locked.\n", keyring.String());
+        window->Update((const void*)keyring.String()); // Update in focus
+    }
+    else {
+        __trace("Error: keyring \"%s\" could not be locked.\n", keyring.String());
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
-    _Notify(nullptr, msg, status);
+    return status;
 }
 
-void KeysApplication::SetKeyringLockKey(BMessage* msg)
+status_t KeysApplication::SetKeyringLockKey(BMessage* msg)
 {
+	if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     const void* data = nullptr;
     ssize_t length = 0;
     if(msg->FindData(kConfigKeyData, B_RAW_TYPE, &data, &length) != B_OK) {
-        fprintf(stderr, "Error: bad data. There are missing fields.\n");
-        return;
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     BMessage* key = new BMessage;
@@ -524,45 +818,62 @@ void KeysApplication::SetKeyringLockKey(BMessage* msg)
     dummy->Flatten(*key);
     delete dummy;
 
-    if(ks->KeyringByName(keyring.String())->SetUnlockKey(key) != B_OK) {
-        fprintf(stderr, "Error: The unlock key could not be applied to the keyring in the store.\n");
-        delete key;
-        return;
+    status_t status = ks->KeyringByName(keyring.String())->SetUnlockKey(key);
+    if(status == B_OK)
+        window->Update(keyring.String()); // Update in focus
+    else {
+        __trace("Error: The unlock key could not be applied to the keyring in the store.\n");
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
     }
 
     delete key;
-    void* ptr = nullptr;
-    if(msg->FindPointer(kConfigWho, &ptr) == B_OK)
-        ((KeyringView*)ptr)->Update();
-    // ((KeysWindow*)window)->Update();
+    return B_OK;
 }
 
-void KeysApplication::RemoveKeyringLockKey(BMessage* msg)
+status_t KeysApplication::RemoveKeyringLockKey(BMessage* msg)
 {
+	if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     status_t status = ks->KeyringByName(keyring.String())->RemoveUnlockKey();
-    if(status != B_OK) {
-        fprintf(stderr, "Error: The unlock key of this keyring could not be removed in the store.\n");
-        // no return, let's notify first
+    if(status == B_OK)
+        window->Update(keyring.String()); // Update in focus
+    else {
+        __trace("Error: The unlock key of this keyring could not be removed in the store.\n");
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
     }
 
-    _Notify(nullptr, msg, status);
+    return status;
 }
 
 void KeysApplication::WipeKeyringContents(BMessage* msg)
 {
+	if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return;
+    }
+
     // Not in the API, it's just a convenience method to quickly clean the keyring,
     //  mostly for dev purposes
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
         return;
     }
 
@@ -571,32 +882,51 @@ void KeysApplication::WipeKeyringContents(BMessage* msg)
     for(int i = count - 1 ; i >= 0; i--)
         target->RemoveKey(target->KeyAt(i)->Identifier(), true);
 
-    _Notify((void*)msg->GetPointer(kConfigWho, nullptr), msg, B_OK);
+    window->Update(keyring.String()); // Update in focus
 }
 
-void KeysApplication::RemoveKeyring(BMessage* msg)
+status_t KeysApplication::RemoveKeyring(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: bad data. No keyring name received or bad keyring name.\n");
+        return B_BAD_DATA;
     }
 
     status_t status = ks->RemoveKeyring(keyring.String(), true);
-    if(status != B_OK)
-        fprintf(stderr, "Error: the keyring %s could not be removed from the store.\n", keyring.String());
+    if(status == B_OK)
+        window->Update(keyring.String()); // Update in focus
+    else {
+        __trace("Error: the keyring %s could not be removed from the store.\n", keyring.String());
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
-    _Notify(nullptr, msg, status);
+    return status;
 }
 
-void KeysApplication::AddKey(BMessage* msg)
+// #pragma mark - Keys operations
+
+status_t KeysApplication::AddKey(BMessage* msg)
 {
+	if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     BString id, sec;
@@ -609,8 +939,8 @@ void KeysApplication::AddKey(BMessage* msg)
     msg->FindUInt32(kConfigKeyPurpose, (uint32*)&p) != B_OK ||
     msg->FindUInt32(kConfigKeyType, (uint32*)&t) != B_OK ||
     msg->FindData(kConfigKeyData, B_RAW_TYPE, &data, &length) != B_OK) {
-        fprintf(stderr, "Error: bad data. There are missing fields.\n");
-        return;
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     /* Check for duplicates. The API seems to allow partial duplicates
@@ -620,31 +950,45 @@ void KeysApplication::AddKey(BMessage* msg)
     KeyImp* key = ks->KeyringByName(keyring.String())->KeyByIdentifier(id.String(), sec.String());
     if(key) {
         fprintf(stderr, "Error: key (%s, %s) in %s already exists.\n", id.String(), sec.String(), keyring.String());
-        BMessage answer(msg->what);
-        answer.AddUInt32("result", B_NAME_IN_USE);
+        BMessage answer(B_REPLY);
+        answer.AddInt32(kConfigWhat, msg->what);
+        answer.AddInt32(kConfigResult, B_NAME_IN_USE);
         window->PostMessage(&answer);
-        return;
+        return B_BAD_DATA;
     }
 
-    ks->KeyringByName(keyring.String())->AddKey(p, t,
+    status_t status = ks->KeyringByName(keyring.String())->AddKey(p, t,
         id.String(), sec.String(), (const uint8*)data, length, true);
+    if(status == B_OK) {
+        __trace("Info: the key (%s, %s) was created in %s keyring successfully.\n",
+            id.String(), sec.String(), keyring.String());
+        window->Update(keyring.String()); // Update in focus
+    }
+    else {
+        __trace("Error: %s. The key (%s, %s) could not be added to %s.\n",
+            strerror(status), id.String(), sec.String(), keyring.String());
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
-    fprintf(stderr, "Info: the key (%s, %s) was created in %s keyring successfully.\n",
-        id.String(), sec.String(), keyring.String());
-
-    void* ptr = (void*)msg->GetPointer(kConfigWho);
-    if(ptr)
-        ((KeyringView*)ptr)->Update();
+    return status;
 }
 
-void KeysApplication::GeneratePwdKey(BMessage* msg)
+status_t KeysApplication::GeneratePwdKey(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     status_t status = B_OK;
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     BString id, sec;
@@ -653,8 +997,8 @@ void KeysApplication::GeneratePwdKey(BMessage* msg)
     if(msg->FindString(kConfigKeyName, &id) != B_OK ||
     msg->FindUInt32(kConfigKeyPurpose, (uint32*)&p) != B_OK ||
     msg->FindUInt32(kConfigKeyGenLength, &length) != B_OK) {
-        fprintf(stderr, "Error: bad data. There are missing fields.\n");
-        return;
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     if(msg->FindString(kConfigKeyAltName, &sec) != B_OK)
@@ -665,70 +1009,98 @@ void KeysApplication::GeneratePwdKey(BMessage* msg)
     BMessage data;
     pwdkey.Flatten(data);
     status = ks->KeyringByName(keyring.String())->ImportKey(&data);
+    if(status == B_OK) {
+        __trace("Info: the key (%s, %s) was created in %s keyring successfully.\n",
+            id.String(), sec.String(), keyring.String());
+        window->Update(keyring.String()); // Update in focus
+    }
+    else {
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
-    ((KeyringView*)msg->GetPointer(kConfigWho))->Update((void*)&status);
+    return status;
 }
 
-void KeysApplication::ImportKey(BMessage* msg)
+status_t KeysApplication::ImportKey(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     entry_ref ref;
     if(msg->FindRef("refs", &ref) != B_OK) {
-        fprintf(stderr, "Error: bad data. No entry reference received.\n");
-        return;
+        __trace("Error: %s. No entry reference received.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     BFile file(&ref, B_READ_ONLY);
-    if(file.InitCheck() != B_OK) {
-        fprintf(stderr, "Error: no file from where import.\n");
-        return;
+    status_t status = file.InitCheck();
+    if(status != B_OK) {
+        __trace("Error: %s. No file from where import.\n", strerror(status));
+        return status;
     }
 
     BMessage* archive = new BMessage;
-    if(archive->Unflatten(&file) != B_OK) {
-        fprintf(stderr, "Error: the message could not be unflattened from file.\n");
+    status = archive->Unflatten(&file);
+    if(status != B_OK) {
+        __trace("Error: %s. The message could not be unflattened from file.\n", strerror(status));
         delete archive;
-        return;
+        return status;
     }
 
-    status_t status;
     BString id, sec;
     if(archive->FindString("identifier", &id) != B_OK ||
     archive->FindString("secondaryIdentifier", &sec) != B_OK) {
-        fprintf(stderr, "Error: key message with missing fields.\n");
-        status = B_BAD_DATA;
-        goto exit;
+        __trace("Error: %s. Key message with missing fields.\n", strerror(B_BAD_DATA));
+        delete archive;
+        return B_BAD_DATA;
     }
 
-    if(ks->KeyringByName(keyring.String())->KeyByIdentifier(id.String(), sec.String()) != nullptr) {
-        fprintf(stderr, "Error: there is already a key with this name.\n");
-        status = B_NAME_IN_USE;
-        goto exit;
+    status = B_NAME_IN_USE;
+    KeyringImp* kr = ks->KeyringByName(keyring.String());
+    if(kr->KeyByIdentifier(id.String(), sec.String()) == nullptr) {
+        status = kr->ImportKey(archive);
     }
 
-    if((status = ks->KeyringByName(keyring.String())->ImportKey(archive)) != B_OK) {
-        fprintf(stderr, "Error: the key could not be successfully added to the keystore.\n");
-        goto exit;
+    if(status == B_OK) {
+        __trace("Info: key successfully imported.\n");
+        window->Update(kr->Identifier());
+    }
+    else {
+        __trace("Error: key already exists in keyring or there was an error during the import.\n");
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
     }
 
-exit:
-    _Notify((void*)msg->GetPointer(kConfigWho, nullptr), msg, status);
     delete archive;
+    return status;
 }
 
-void KeysApplication::ExportKey(BMessage* msg)
+status_t KeysApplication::ExportKey(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     status_t status = B_OK;
@@ -738,77 +1110,122 @@ void KeysApplication::ExportKey(BMessage* msg)
     msg->FindString("name", &name) != B_OK ||
     msg->FindString(kConfigKeyName, &id) != B_OK ||
     msg->FindString(kConfigKeyAltName, &alt) != B_OK) {
-        fprintf(stderr, "Error: bad data. There are missing fields.\n");
-        return;
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     BMessage* archive = new BMessage;
     if((status = ks->KeyringByName(keyring.String())->KeyByIdentifier(id.String(), alt.String())->Export(archive)) != B_OK) {
-        fprintf(stderr, "Error: the key (%s, %s) in %s could not be exported to a flattened BMessage.\n",
+        __trace("Error: the key (%s, %s) in %s could not be exported to a flattened BMessage.\n",
             id.String(), alt.String(), keyring.String());
         delete archive;
-        return;
+        return status;
     }
 
     BDirectory directory(&dirref);
     BFile file(&directory, name.String(), B_READ_WRITE | B_CREATE_FILE | B_FAIL_IF_EXISTS);
     if((status = file.InitCheck()) != B_OK) {
-        fprintf(stderr, "The file %s to where export the flattened BMessage could not be initialized.\n",
+        __trace("The file %s to where export the flattened BMessage could not be initialized.\n",
             BPath(&directory, name.String(), true).Path());
         delete archive;
-        return;
+        return status;
     }
-    status = archive->Flatten(&file);
 
-    _Notify(nullptr, msg, status);
+    status = archive->Flatten(&file);
+    if(status != B_OK) {
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
     delete archive;
+    return status;
 }
 
-void KeysApplication::RemoveKey(BMessage* msg)
+status_t KeysApplication::RemoveKey(BMessage* msg)
 {
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     BString id, alt;
     if(msg->FindString(kConfigKeyName, &id) != B_OK ||
     msg->FindString(kConfigKeyAltName, &alt) != B_OK) {
-        fprintf(stderr, "Error: bad data. There are missing fields.\n");
-        return;
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
     }
 
     status_t status = ks->KeyringByName(keyring.String())->RemoveKey(id.String(), alt.String(), true);
+    if(status == B_OK) {
+        window->Update(keyring.String());
+    }
+    else {
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
 
-    _Notify(nullptr, msg, status);
+    return status;
 }
 
-void KeysApplication::RemoveApp(BMessage* msg)
+// #pragma mark - Applications operations
+
+status_t KeysApplication::RemoveApp(BMessage* msg)
 {
+	if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
     BString keyring;
     if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
     !ks->KeyringByName(keyring.String())) {
-        fprintf(stderr, "Error: bad data. No keyring name received or bad keyring name.\n");
-        return;
+        __trace("Error: bad data. No keyring name received or bad keyring name.\n");
+        return B_BAD_DATA;
     }
 
     BString signature;
     if(msg->FindString(kConfigSignature, &signature) != B_OK) {
-        fprintf(stderr, "Error: bad data. There are missing fields.\n");
-        return;
+        __trace("Error: bad data. There are missing fields.\n");
+        return B_BAD_DATA;
     }
 
     status_t status = ks->KeyringByName(keyring.String())->RemoveApplication(signature.String(), true);
 
-    _Notify(nullptr, msg, status);
+    if(status == B_OK)
+		window->Update(keyring.String());
+    else {
+        BMessage reply(B_REPLY);
+        reply.AddInt32(kConfigWhat, msg->what);
+        reply.AddInt32(kConfigResult, status);
+        window->PostMessage(&reply);
+    }
+
+    return status;
 }
 
-// #pragma mark -
+// #pragma mark - Private
 
-void KeysApplication::_InitAppData(KeystoreImp*& ks, BKeyStore* keystore)
+void KeysApplication::_InitAppData(const BMessage* data)
+{
+    BMessage defaultSettings;
+    CreateSettings(&defaultSettings);
+
+    if(currentSettings.FindRect("frame", &frame) != B_OK)
+        defaultSettings.FindRect("frame", &frame);
+}
+
+void KeysApplication::_InitKeystoreData(KeystoreImp*& ks, BKeyStore* keystore)
 {
     bool next = true;
     uint32 keyringCookie = 0;
@@ -821,21 +1238,20 @@ void KeysApplication::_InitAppData(KeystoreImp*& ks, BKeyStore* keystore)
         {
             case B_OK:
             {
-                fprintf(stderr, "Info: found keyring: %s\n", keyringName.String());
+                __trace("Info: found keyring: %s\n", keyringName.String());
                 ks->AddKeyring(keyringName.String());
                 _InitKeyring(ks, keystore, keyringName.String());
                 break;
             }
             case B_ENTRY_NOT_FOUND:
-                fprintf(stderr, "Info: no keyrings left\n");
+                __trace("Info: no keyrings left\n");
                 next = false;
                 break;
             default:
-                fprintf(stderr, "Error: %s comms error\n", keyringName.String());
+                __trace("Error: %s comms error\n", keyringName.String());
                 next = false;
                 break;
         }
-
     }
 }
 
@@ -937,56 +1353,6 @@ void KeysApplication::_Notify(void* ptr, BMessage* msg, status_t result)
     msg->SendReply(&reply);
 }
 
-status_t KeysApplication::_StopServer(bool rebuildModel)
-{
-    if(be_roster->IsRunning(kKeyStoreServerSignature)) {
-        team_id team = be_roster->TeamFor(kKeyStoreServerSignature);
-        if(team == B_ERROR)
-            return B_BAD_TEAM_ID;
-
-        fprintf(stderr, "Info: trying to stop keystore server...\n");
-        BMessenger msgr(kKeyStoreServerSignature, team);
-        msgr.SendMessage(B_QUIT_REQUESTED);
-
-        thServerMonitor = spawn_thread(_CallServerMonitor, "Keystore server monitor",
-            B_NORMAL_PRIORITY, this);
-        resume_thread(thServerMonitor);
-
-        // here we should rebuild the data model
-        if(rebuildModel) {
-            fprintf(stderr, "Info: Rebuilding model...\n");
-            ks->Reset();
-            // _InitAppData(ks, &keystore);
-            window->UpdateAsEmpty();
-        }
-    }
-    return B_OK;
-}
-
-status_t KeysApplication::_RestartServer(bool rebuildModel, bool closeIfRunning)
-{
-    status_t status = B_OK;
-
-    if(be_roster->IsRunning(kKeyStoreServerSignature) && closeIfRunning)
-        _StopServer();
-
-    BMessenger msgr(kKeyStoreServerSignature);
-    if(!msgr.IsValid()) {
-        fprintf(stderr, "Info: Keystore server not running. Starting it...\n");
-        status = be_roster->Launch(kKeyStoreServerSignature);
-        if(status != B_OK && status != B_ALREADY_RUNNING) {
-            fprintf(stderr, "Error: The server could not be run successfully.\n");
-            return B_ERROR;
-        }
-        // here we should rebuild the data model
-        if(rebuildModel) {
-            fprintf(stderr, "Info: Rebuilding model...\n");
-            _RebuildModel();
-        }
-    }
-    return status;
-}
-
 int32 KeysApplication::_CallServerMonitor(void* data)
 {
     bool stop = false;
@@ -1011,56 +1377,6 @@ void KeysApplication::_CallRebuildModel(void* data)
 void KeysApplication::_RebuildModel()
 {
     ks->Reset();
-    _InitAppData(ks, &keystore);
+    _InitKeystoreData(ks, &keystore);
     window->Update();
-}
-
-status_t KeysApplication::_LoadSettings()
-{
-    status_t status = B_OK;
-    BPath usrsetpath;
-    if((status = find_directory(B_USER_SETTINGS_DIRECTORY, &usrsetpath)) != B_OK) {
-        return status;
-    }
-
-    usrsetpath.Append(kAppName ".settings");
-    BFile file(usrsetpath.Path(), B_READ_ONLY);
-    if((status = file.InitCheck()) != B_OK) {
-        return status;
-    }
-
-    if((status = currentSettings.Unflatten(&file)) != B_OK) {
-        return status;
-    }
-
-    if(currentSettings.FindRect("frame", &frame) != B_OK)
-        return B_ERROR;
-
-    return status;
-}
-
-status_t KeysApplication::_SaveSettings()
-{
-    status_t status = B_OK;
-
-    if(currentSettings.ReplaceRect("frame", window->Frame()) != B_OK)
-        currentSettings.AddRect("frame", window->Frame());
-
-    BPath usrsetpath;
-    if((status = find_directory(B_USER_SETTINGS_DIRECTORY, &usrsetpath)) != B_OK) {
-        return status;
-    }
-
-    usrsetpath.Append(kAppName ".settings");
-    BFile file(usrsetpath.Path(), B_READ_WRITE | B_CREATE_FILE | B_ERASE_FILE);
-    if((status = file.InitCheck()) != B_OK) {
-        return status;
-    }
-    file.SetPermissions(DEFFILEMODE);
-
-    if((status = currentSettings.Flatten(&file)) != B_OK) {
-        return status;
-    }
-
-    return status;
 }

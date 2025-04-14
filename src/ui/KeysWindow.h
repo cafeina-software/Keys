@@ -21,6 +21,7 @@
 #define I_SERVER_STOP      'stop'
 #define I_DATA_REFRESH     'irfs'
 #define I_SELECTED         'isel'
+#define I_TAB_SELECTED     'tsel'
 #define I_KEYSTORE_BACKUP  'iksb'
 #define I_KEYSTORE_RESTORE 'iksr'
 #define I_KEYSTORE_INFO    'iksi'
@@ -101,10 +102,9 @@ public:
     void                    SetUIStatus(ui_status status, const char* focus = nullptr);
     ui_status               GetUIStatus();
     void                    Update(const void* data = NULL);
-    void                    UpdateAsEmpty();
 private:
     void                    _InitAppData(KeystoreImp* ks);
-    void                    _FullReload(KeystoreImp* ks);
+    void                    _HandleReplyBacks(BMessage* reply);
 
     void                    _KeystoreInfo();
     status_t                _AddKeyring();
@@ -118,9 +118,7 @@ private:
     void                    _ImportKey(BMessage* msg);
     void                    _ExportKey(BMessage* msg);
     void                    _RemoveKey(BMessage* msg);
-
-    KeyringView            *_FindKeyringView(const char* target);
-    void                    _NotifyKeyringView(const char* target);
+    void                    _RemoveApp(BMessage* msg);
 
     BMenuBar*               _InitMenu();
     BPopUpMenu             *_InitKeystorePopUpMenu();
@@ -130,11 +128,12 @@ private:
     BKeyStore*              keystore;
     KeystoreImp*            ks;
     const char*             currentKeyring;
-    ui_status               uist;
+    ui_status               uiStatus;
     KeyMsgRefFilter        *fFilter;
 
     BListViewEx            *listView;
     BCardView              *cardView;
+    KeyringView            *keyringView;
     BButton                *addKeyringButton,
                            *removeKeyringButton;
     BFilePanel             *openPanel,
@@ -144,6 +143,8 @@ private:
                            *fIsLockedKeyring,
                            *fMenuKeystore,
                            *fMenuKeyring;
+    BMenu                  *fMenuKey,
+                           *fAppKey;
     BPopUpMenu             *fKeystorePopMenu,
                            *fKeyringItemMenu;
 };

@@ -14,43 +14,55 @@
 class KeysApplication : public BApplication
 {
 public:
-                    KeysApplication();
-    virtual        ~KeysApplication();
-    virtual void    ReadyToRun();
-    virtual void    MessageReceived(BMessage* msg);
-    virtual void    AboutRequested();
-    virtual bool    QuitRequested();
-    virtual status_t GetSupportedSuites(BMessage* msg);
-    virtual BHandler* ResolveSpecifier(BMessage* msg, int32 index, BMessage* specifier,
-                                       int32 what, const char* property);
-            void    HandleScripting(BMessage* msg);
+                        KeysApplication();
+    virtual             ~KeysApplication();
 
-    void            KeystoreBackup(BMessage* msg);
-    void            KeystoreRestore(BMessage* msg);
-    void            WipeKeystoreContents(BMessage* msg);
-    void            AddKeyring(BMessage* msg);
-    void            LockKeyring(BMessage* msg);
-    void            SetKeyringLockKey(BMessage* msg);
-    void            RemoveKeyringLockKey(BMessage* msg);
-    void            WipeKeyringContents(BMessage* msg);
-    void            RemoveKeyring(BMessage* msg);
-    void            AddKey(BMessage* msg);
-    void            GeneratePwdKey(BMessage* msg);
-    void            ImportKey(BMessage* msg);
-    void            ExportKey(BMessage* msg);
-    void            RemoveKey(BMessage* msg);
-    void            RemoveApp(BMessage* msg);
+    virtual bool        QuitRequested();
+    virtual void        ReadyToRun();
+    virtual void        MessageReceived(BMessage* msg);
+    virtual void        ArgvReceived(int32 argc, char** argv);
+    virtual void        RefsReceived(BMessage* msg);
+    virtual void        AboutRequested();
+
+    virtual BHandler*   ResolveSpecifier(BMessage* msg, int32 index,
+                            BMessage* specifier, int32 form,
+                            const char* property);
+    virtual status_t    GetSupportedSuites(BMessage* data);
+            void        HandleScripting(BMessage* msg);
+
+            void        CreateSettings(BMessage* archive);
+            status_t    LoadSettings();
+            status_t    SaveSettings();
+
+            status_t    StartServer(bool rebuildModel = true,
+                            bool forceRestart = false);
+            status_t    StopServer(bool rebuildModel = true);
+
+            status_t    KeystoreBackup(BMessage* msg);
+            status_t    KeystoreRestore(BMessage* msg);
+            void        WipeKeystoreContents(BMessage* msg);
+            status_t    AddKeyring(BMessage* msg);
+            status_t    LockKeyring(BMessage* msg);
+            status_t    SetKeyringLockKey(BMessage* msg);
+            status_t    RemoveKeyringLockKey(BMessage* msg);
+            void        WipeKeyringContents(BMessage* msg);
+            status_t    RemoveKeyring(BMessage* msg);
+            status_t    AddKey(BMessage* msg);
+            status_t    GeneratePwdKey(BMessage* msg);
+            status_t    ImportKey(BMessage* msg);
+            status_t    ExportKey(BMessage* msg);
+            status_t    RemoveKey(BMessage* msg);
+            status_t    RemoveApp(BMessage* msg);
 private:
-    void            _InitAppData(KeystoreImp*& ks, BKeyStore* keystore);
-    void            _InitKeyring(KeystoreImp*& ks, BKeyStore* keystore, const char* kr);
-    void            _Notify(void* ptr, BMessage* msg, status_t result);
-    status_t        _StopServer(bool rebuildModel = true);
-    status_t        _RestartServer(bool rebuildModel = true, bool closeIfRunning = false);
-    static int32    _CallServerMonitor(void* data);
-    static void     _CallRebuildModel(void* data);
-    void            _RebuildModel();
-    status_t        _LoadSettings();
-    status_t        _SaveSettings();
+            void        _InitAppData(const BMessage* data);
+            void        _InitKeystoreData(KeystoreImp*& ks, BKeyStore* keystore);
+            void        _InitKeyring(KeystoreImp*& ks, BKeyStore* keystore,
+                            const char* kr);
+
+            void        _Notify(void* ptr, BMessage* msg, status_t result);
+    static  int32       _CallServerMonitor(void* data);
+    static  void        _CallRebuildModel(void* data);
+            void        _RebuildModel();
 private:
     KeysWindow     *window;
     BMessage        currentSettings;
@@ -59,6 +71,7 @@ private:
     KeystoreImp    *ks;
     node_ref        databaseNRef;
     thread_id       thServerMonitor;
+    const char     *inFocus;
 };
 
 #endif /* __KEY_APP_H_ */

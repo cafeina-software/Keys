@@ -2,12 +2,12 @@
  * Copyright 2024, cafeina <cafeina@world>
  * All rights reserved. Distributed under the terms of the MIT license.
  */
-#include <AppKit.h>
-#include <InterfaceKit.h>
-#include <StorageKit.h>
 #include <Catalog.h>
+#include <Clipboard.h>
 #include <IconUtils.h>
 #include <KeyStore.h>
+#include <Roster.h>
+#include <private/interface/ColumnListView.h>
 #include <private/interface/ColumnTypes.h>
 #include <private/shared/ToolBar.h>
 #include <cstdio>
@@ -29,21 +29,23 @@ BBitmap* trackerIcon;
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Keyring view"
 
-KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
-: BView(frame, name, 0, 0), ks(_ks), keyringname(name)
+KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* imp)
+: BView(frame, name, 0, 0),
+  ks(imp),
+  keyringname(NULL)
 {
     keylistview = new BColumnListView("clv_keylist", 0, B_FANCY_BORDER);
     keylistview->SetSelectionMode(B_SINGLE_SELECTION_LIST);
     keylistview->SetSelectionMessage(new BMessage(KRV_KEYS_SEL));
     keylistview->SetInvocationMessage(new BMessage(KRV_KEYS_INVOKE));
     keylistview->AddColumn(new BStringColumn(B_TRANSLATE("Identifier"),
-        200, 50, _MaxLength(keylistview, 0, 350, ks, true), 0, B_ALIGN_LEFT), 0);
+        200, StringWidth(B_TRANSLATE("Identifier")) * 1.25, 350, 0, B_ALIGN_LEFT), 0);
     keylistview->AddColumn(new BStringColumn(B_TRANSLATE("Extra info"),
-        200, 50, _MaxLength(keylistview, 1, 350, ks, true), 0, B_ALIGN_LEFT), 1);
+        200, StringWidth(B_TRANSLATE("Extra info")) * 1.25, 350, 0, B_ALIGN_LEFT), 1);
     keylistview->AddColumn(new BStringColumn(B_TRANSLATE("Type"),
-        100, 50, _MaxLength(keylistview, 2, 125, ks, true), 0, B_ALIGN_LEFT), 2);
+        100, StringWidth(B_TRANSLATE("Type")) * 1.25, 125, 0, B_ALIGN_LEFT), 2);
     keylistview->AddColumn(new BStringColumn(B_TRANSLATE("Purpose"),
-        100, 50, _MaxLength(keylistview, 3, 125, ks, true), 0, B_ALIGN_LEFT), 3);
+        100, StringWidth(B_TRANSLATE("Purpose")) * 1.25, 125, 0, B_ALIGN_LEFT), 3);
 
     keylsttoolbar = new BToolBar(B_VERTICAL);
     keylsttoolbar->AddAction(KRV_KEYS_CREATE, this,
@@ -78,9 +80,9 @@ KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
     applistview->SetSelectionMessage(new BMessage(KRV_APPS_SEL));
     applistview->SetInvocationMessage(new BMessage(KRV_APPS_INVOKE));
     applistview->AddColumn(new BStringColumn(B_TRANSLATE("Application"),
-        200, 100, _MaxLength(applistview, 0, 300, ks, false), 0, B_ALIGN_LEFT), 0);
+        200, StringWidth(B_TRANSLATE("Application")) * 1.25, 300, 0, B_ALIGN_LEFT), 0);
     applistview->AddColumn(new BStringColumn(B_TRANSLATE("Signature"),
-        325, 250, _MaxLength(applistview, 0, 400, ks, false), 0, B_ALIGN_LEFT), 1);
+        325, StringWidth(B_TRANSLATE("Signature")) * 1.25, 400, 0, B_ALIGN_LEFT), 1);
 
     applsttoolbar = new BToolBar(B_VERTICAL);
     applsttoolbar->AddAction(KRV_APPS_REMOVE, this,
@@ -113,10 +115,14 @@ KeyringView::KeyringView(BRect frame, const char* name, KeystoreImp* _ks)
         .Add(tabView)
     .End();
 
-    _InitAppData(/*ks*/);
+    _InitAppData(keyringname);
 
     keylistview->ResizeAllColumnsToPreferred();
     applistview->ResizeAllColumnsToPreferred();
+}
+
+KeyringView::~KeyringView()
+{
 }
 
 void KeyringView::AttachedToWindow()
@@ -257,9 +263,22 @@ void KeyringView::MessageReceived(BMessage* msg)
             }
             break;
         }
-        case M_KEY_CREATE:
-            Update();
+
+        case B_REPLY:
+        {
+            bool keyringChanged = msg->GetBool("keyring_changed", false);
+
+            if(keyringChanged) {
+                keylistview->DeselectAll();
+                applistview->DeselectAll();
+                for(const auto& it : { KRV_KEYS_REMOVE, KRV_KEYS_COPY, KRV_KEYS_VWDATA, KRV_KEYS_EXPORT })
+                    keylsttoolbar->FindButton(it)->SetEnabled(false);
+                for(const auto& it : { KRV_APPS_REMOVE, KRV_APPS_COPY, KRV_APPS_INVOKE })
+                    applsttoolbar->FindButton(it)->SetEnabled(false);
+            }
+
             break;
+        }
         default:
             BView::MessageReceived(msg);
             break;
@@ -268,25 +287,34 @@ void KeyringView::MessageReceived(BMessage* msg)
 
 void KeyringView::Update(const void* data)
 {
-    fprintf(stderr, "[%s] Called update\n", Name());
-
     LockLooper();
 
     keylistview->Clear();
     applistview->Clear();
+	keyringname = NULL;
 
-    // Ask application class to update the data model instance for the keyring
-    // BMessage request(M_ASK_FOR_REFRESH), reply;
-    // request.AddString(kConfigKeyring, keyringname);
-    // be_app->PostMessage(&request);
-
-    _InitAppData(/*ks*/);
+    if(data != NULL) {
+		keyringname = reinterpret_cast<const char*>(data);
+        _InitAppData(keyringname);
+        keylsttoolbar->FindButton(KRV_KEYS_CREATE)->SetEnabled(true);
+	}
+    else {
+        keylistview->DeselectAll();
+        applistview->DeselectAll();
+        for(const auto& it : { KRV_KEYS_CREATE, KRV_KEYS_REMOVE, KRV_KEYS_COPY, KRV_KEYS_VWDATA, KRV_KEYS_EXPORT })
+            keylsttoolbar->FindButton(it)->SetEnabled(false);
+        for(const auto& it : { KRV_APPS_REMOVE, KRV_APPS_COPY, KRV_APPS_INVOKE })
+            applsttoolbar->FindButton(it)->SetEnabled(false);
+    }
 
     UnlockLooper();
 }
 
-void KeyringView::_InitAppData(/*KeystoreImp* ks*/)
+void KeyringView::_InitAppData(const char* data)
 {
+    if(!data)
+		return;
+
     BRow* row = NULL;
 
     for(int i = 0; i < ks->KeyringByName(keyringname)->KeyCount(); i++) {
@@ -402,8 +430,10 @@ void KeyringView::_RemoveKey(KeystoreImp* ks, const char* id, const char* sec)
 void KeyringView::_RemoveApp(KeystoreImp* ks, const char* signature)
 {
     KeyringImp* keyring = ks->KeyringByName(keyringname);
-    if(!keyring)
+    if(!keyring) {
+    	__trace("Error: no keyring.\n");
         return;
+    }
 
     BMessage request(I_APP_REMOVE);
     request.AddString(kConfigKeyring, keyringname);
@@ -432,73 +462,4 @@ void KeyringView::_CopyData(KeystoreImp* ks, BColumnListView* owner,
 
         be_clipboard->Unlock();
     }
-}
-
-int KeyringView::_MaxLength(BColumnListView* view, int fieldid, int defValue, KeystoreImp* ks, bool iskeytype)
-{
-    int maxValue = defValue;
-
-    if(iskeytype) {
-        for(int i = 0; i < ks->KeyringByName(keyringname)->KeyCount(); i++) {
-            int length = 0;
-            switch(fieldid) {
-                case 0:
-                    length = view->StringWidth(ks->KeyringByName(keyringname)->KeyAt(i)->Identifier()) + 20;
-                    break;
-                case 1:
-                    length = view->StringWidth(ks->KeyringByName(keyringname)->KeyAt(i)->SecondaryIdentifier()) + 20;
-                    break;
-                case 2:
-                {
-                    switch(ks->KeyringByName(keyringname)->KeyAt(i)->Type()) {
-                        case B_KEY_TYPE_GENERIC:
-                            length = view->StringWidth(B_TRANSLATE("Generic")); break;
-                        case B_KEY_TYPE_PASSWORD:
-                            length = view->StringWidth(B_TRANSLATE("Password")); break;
-                        case B_KEY_TYPE_CERTIFICATE:
-                        default:
-                            length = view->StringWidth(B_TRANSLATE("Certificate")); break;
-                    }
-                    break;
-                }
-                case 3:
-                {
-                    switch(ks->KeyringByName(keyringname)->KeyAt(i)->Purpose()) {
-                        case B_KEY_PURPOSE_GENERIC:
-                        default:
-                            length = view->StringWidth(B_TRANSLATE("Generic")) + 20; break;
-                        case B_KEY_PURPOSE_KEYRING:
-                            length = view->StringWidth(B_TRANSLATE("Keyring")) + 20; break;
-                        case B_KEY_PURPOSE_NETWORK:
-                            length = view->StringWidth(B_TRANSLATE("Network")) + 20; break;
-                        case B_KEY_PURPOSE_VOLUME:
-                            length = view->StringWidth(B_TRANSLATE("Volume")) + 20; break;
-                        case B_KEY_PURPOSE_WEB:
-                            length = view->StringWidth(B_TRANSLATE("Web")) + 20; break;
-                    }
-                    break;
-                }
-            }
-
-            if(maxValue < length)
-                maxValue = length;
-        }
-    }
-    else {
-        for(int i = 0; i < ks->KeyringByName(keyringname)->ApplicationCount(); i++) {
-            int length = 0;
-            switch(fieldid) {
-                case 0:
-                    length = 250; // hardcoded, we can't know apps' names here
-                    break;
-                case 1:
-                    length = view->StringWidth(ks->KeyringByName(keyringname)->ApplicationAt(i)->Identifier()) + 20;
-                    break;
-            }
-            if(maxValue < length)
-                maxValue = length;
-        }
-    }
-
-    return maxValue;
 }

@@ -2,10 +2,61 @@
  * Copyright 2024, cafeina <cafeina@world>
  * All rights reserved. Distributed under the terms of the MIT license.
  */
+#include <Catalog.h>
 #include <KeyStore.h>
 #include <Roster.h>
 #include <cstdio>
 #include "KeystoreImp.h"
+
+#undef B_TRANSLATION_CONTEXT
+#define B_TRANSLATION_CONTEXT "String 4 life"
+
+const char* StringForPurpose(BKeyPurpose purpose)
+{
+    switch(purpose) {
+        case B_KEY_PURPOSE_ANY: return B_TRANSLATE("Any");
+        case B_KEY_PURPOSE_GENERIC: return B_TRANSLATE("Generic");
+        case B_KEY_PURPOSE_KEYRING: return B_TRANSLATE("Keyring");
+        case B_KEY_PURPOSE_WEB: return B_TRANSLATE("Web");
+        case B_KEY_PURPOSE_NETWORK: return B_TRANSLATE("Network");
+        case B_KEY_PURPOSE_VOLUME: return B_TRANSLATE("Volume");
+        default: return "";
+    }
+}
+
+const char* StringForType(BKeyType type) {
+    switch(type) {
+        case B_KEY_TYPE_ANY: return B_TRANSLATE("Any");
+        case B_KEY_TYPE_GENERIC: return B_TRANSLATE("Generic");
+        case B_KEY_TYPE_PASSWORD: return B_TRANSLATE("Password");
+        case B_KEY_TYPE_CERTIFICATE: return B_TRANSLATE("Certificate");
+        default: return "";
+    }
+}
+
+#undef B_TRANSLATION_CONTEXT
+
+bool IsExportedKey(BMessage* keyFileData)
+{
+    status_t status = B_ERROR;
+    type_code code = B_ANY_TYPE;
+    int32 found = 0;
+
+    status = keyFileData->GetInfo("type", &code, &found);
+    if(status == B_OK && code == B_UINT32_TYPE && found == 1)
+        status = keyFileData->GetInfo("purpose", &code, &found);
+    if(status == B_OK && code == B_UINT32_TYPE && found == 1)
+        status = keyFileData->GetInfo("identifier", &code, &found);
+    if(status == B_OK && code == B_STRING_TYPE && found == 1)
+        status = keyFileData->GetInfo("secondaryIdentifier", &code, &found);
+    if(status == B_OK && code == B_STRING_TYPE && found == 1)
+        status = keyFileData->GetInfo("data", &code, &found);
+    if(status == B_OK && code == B_ANY_TYPE && found == 1)
+        status = B_OK; // We currently will not require owner and
+                       // creationTime as they are not currently used in the API
+
+    return status == B_OK;
+}
 
 /* Operation modes for read-write methods:
  *  + model-only: only works on the model ADT
@@ -248,10 +299,11 @@ status_t KeyringImp::AddKey(BKeyPurpose p, BKeyType t, const char* id,
         }
     }
 
+    bool added = false;
     if(status == B_OK)
-        status = fKeyList.AddItem(new KeyImp(this, p, t, id, secid));
+        added = fKeyList.AddItem(new KeyImp(this, p, t, id, secid));
 
-    return status;
+    return added ? B_OK : B_ERROR;
 }
 
 // ImportKey: model-and-database
@@ -324,10 +376,11 @@ status_t KeyringImp::RemoveKey(const char* id, bool deleteInDb)
         }
     }
 
+    bool removed = false;
     if(status == B_OK)
-        fKeyList.RemoveItem(keyentry);
+        removed = fKeyList.RemoveItem(keyentry);
 
-    return status;
+    return removed ? B_OK : B_ERROR;
 }
 
 // RemoveKey: model-opt-database
@@ -363,10 +416,11 @@ status_t KeyringImp::RemoveKey(const char* id, const char* secid, bool deleteInD
         }
     }
 
+    bool removed = false;
     if(status == B_OK)
-        fKeyList.RemoveItem(keyentry);
+        removed = fKeyList.RemoveItem(keyentry);
 
-    return status;
+    return removed ? B_OK : B_ERROR;
 }
 
 KeyImp* KeyringImp::KeyAt(int32 index)
