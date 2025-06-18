@@ -54,6 +54,8 @@ T* FindInList2(BObjectList<T> list, const char* idstring, const char* secstring)
 	return selection;
 }
 
+BKeyPurpose PurposeForString(const char* purposeString);
+BKeyType TypeForString(const char* typeString);
 const char* StringForPurpose(BKeyPurpose);
 const char* StringForType(BKeyType);
 bool IsExportedKey(BMessage* keyFileData);

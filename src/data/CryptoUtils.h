@@ -19,4 +19,6 @@ status_t GenerateSalt(size_t length, BPositionIO* outdata);
 status_t SHA256CheckSum(BPositionIO* indata, ssize_t inlength, BPositionIO* outdata);
 const char* HashToHashstring(const unsigned char* indata, ssize_t inlenght);
 
+void memzero(void* ptr, size_t len);
+
 #endif /* __CRYPYO_UTILS_H_ */

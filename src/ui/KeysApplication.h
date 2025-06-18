@@ -52,6 +52,7 @@ public:
             status_t    ImportKey(BMessage* msg);
             status_t    ExportKey(BMessage* msg);
             status_t    RemoveKey(BMessage* msg);
+            status_t    CopyKeyData(BMessage* msg);
             status_t    RemoveApp(BMessage* msg);
 private:
             void        _InitAppData(const BMessage* data);
@@ -63,6 +64,7 @@ private:
     static  int32       _CallServerMonitor(void* data);
     static  void        _CallRebuildModel(void* data);
             void        _RebuildModel();
+            void        _ClipboardJanitor();
 private:
     KeysWindow     *window;
     BMessage        currentSettings;
@@ -72,6 +74,8 @@ private:
     node_ref        databaseNRef;
     thread_id       thServerMonitor;
     const char     *inFocus;
+    bool            hasDataCopied;
+    BMessageRunner* clipboardCleanerRunner;
 };
 
 #endif /* __KEY_APP_H_ */

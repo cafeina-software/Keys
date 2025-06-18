@@ -9,6 +9,37 @@
 #include "KeystoreImp.h"
 
 #undef B_TRANSLATION_CONTEXT
+#define B_TRANSLATION_CONTEXT "Enum 4 string"
+
+BKeyPurpose PurposeForString(const char* purposeString)
+{
+	if(strcmp(purposeString, B_TRANSLATE_COMMENT("Generic", "As in Generic Purpose")) == 0)
+		return B_KEY_PURPOSE_GENERIC;
+	else if(strcmp(purposeString, B_TRANSLATE("Keyring")) == 0)
+		return B_KEY_PURPOSE_KEYRING;
+	else if(strcmp(purposeString, B_TRANSLATE("Web")) == 0)
+		return B_KEY_PURPOSE_WEB;
+	else if(strcmp(purposeString, B_TRANSLATE("Network")) == 0)
+		return B_KEY_PURPOSE_NETWORK;
+	else if(strcmp(purposeString, B_TRANSLATE("Volume")) == 0)
+		return B_KEY_PURPOSE_VOLUME;
+	else
+		return B_KEY_PURPOSE_ANY;
+}
+
+BKeyType TypeForString(const char* typeString)
+{
+	if(strcmp(typeString, B_TRANSLATE_COMMENT("Generic", "As in Generic Type")) == 0)
+		return B_KEY_TYPE_GENERIC;
+	else if(strcmp(typeString, B_TRANSLATE("Password")) == 0)
+		return B_KEY_TYPE_PASSWORD;
+	else if(strcmp(typeString, B_TRANSLATE("Certificate")) == 0)
+		return B_KEY_TYPE_CERTIFICATE;
+	else
+		return B_KEY_TYPE_ANY;
+}
+
+#undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "String 4 life"
 
 const char* StringForPurpose(BKeyPurpose purpose)

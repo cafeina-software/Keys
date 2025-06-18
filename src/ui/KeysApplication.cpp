@@ -11,12 +11,14 @@
 #include <Path.h>
 #include <PropertyInfo.h>
 #include <private/interface/AboutWindow.h>
+#include <atomic>
 #include <cstdio>
 #include <unordered_map>
 #include "KeysApplication.h"
 #include "KeysWindow.h"
 #include "../KeysDefs.h"
 #include "../data/BackUpUtils.h"
+#include "../data/CryptoUtils.h"
 #include "../data/KeystoreImp.h"
 #include "../data/PasswordStrength.h"
 
@@ -76,7 +78,8 @@ KeysApplication::KeysApplication()
   window(NULL),
   frame(BRect(50, 50, 720, 480)),
   ks(new KeystoreImp()),
-  inFocus(NULL)
+  inFocus(NULL),
+  hasDataCopied(false)
 {
     /* Start the server if not yet started */
     StartServer(false);
@@ -93,10 +96,15 @@ KeysApplication::KeysApplication()
     DBPath(&path);
     BEntry(path.Path()).GetNodeRef(&databaseNRef);
     watch_node(&databaseNRef, B_WATCH_ALL, this);
+
+    /* Safety measures */
+    clipboardCleanerRunner = new BMessageRunner(this,
+        new BMessage(M_ASK_FOR_CLIPBOARD_CLEANUP), 30000000, -1);
 }
 
 KeysApplication::~KeysApplication()
 {
+    delete clipboardCleanerRunner;
     watch_node(&databaseNRef, B_STOP_WATCHING, this);
     delete ks;
 }
@@ -104,6 +112,16 @@ KeysApplication::~KeysApplication()
 bool KeysApplication::QuitRequested()
 {
     SaveSettings();
+    if(hasDataCopied) {
+        BAlert* alert = new BAlert(B_TRANSLATE("Clipboard clean-up confirmation"),
+        B_TRANSLATE("The system clipboard may still contain a copied key secret. "
+        "Do you want to clear the clipboard before exiting?"),
+        B_TRANSLATE("Clear clipboard"), B_TRANSLATE("Do not clear"), NULL,
+        B_WIDTH_FROM_LABEL, B_WARNING_ALERT);
+        alert->SetDefaultButton(alert->ButtonAt(0));
+        if(alert->Go() == 0)
+            _ClipboardJanitor();
+    }
     return BApplication::QuitRequested();
 }
 
@@ -164,6 +182,11 @@ void KeysApplication::MessageReceived(BMessage* msg)
             msg->SendReply(&reply);
             break;
         }
+        case M_ASK_FOR_CLIPBOARD_CLEANUP:
+        {
+            _ClipboardJanitor();
+            break;
+        }
         case I_SERVER_RESTART:
             StartServer(false, false);
             break;
@@ -172,42 +195,78 @@ void KeysApplication::MessageReceived(BMessage* msg)
             break;
 
         case M_KEYSTORE_BACKUP:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break; // Dismiss foreign messages for keystore operations
+
             KeystoreBackup(msg);
             break;
         case M_KEYSTORE_RESTORE:
+            if(msg->IsSourceRemote())
+                break; // Dismiss foreign messages for dangerous keystore operations
+                         // but possibly allow drag and drop backups
             KeystoreRestore(msg);
             break;
         case M_KEYSTORE_WIPE_CONTENTS:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             WipeKeystoreContents(msg);
             break;
 
         case M_KEYRING_CREATE:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             AddKeyring(msg);
             break;
         case M_KEYRING_DELETE:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             RemoveKeyring(msg);
             break;
         case M_KEYRING_WIPE_CONTENTS:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             WipeKeyringContents(msg);
             break;
         case M_KEYRING_LOCK:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             LockKeyring(msg);
             break;
         case M_KEYRING_SET_LOCKKEY:
+            if(msg->IsSourceRemote())
+                break;
+
             SetKeyringLockKey(msg);
             break;
         case M_KEYRING_UNSET_LOCKKEY:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             RemoveKeyringLockKey(msg);
             break;
 
         case M_KEY_CREATE:
+            if(msg->IsSourceRemote())
+                break;
+
             AddKey(msg);
             break;
         case M_KEY_GENERATE_PASSWORD:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             GeneratePwdKey(msg);
             break;
         case M_KEY_IMPORT:
         {
+            if(msg->IsSourceRemote())
+                break;
+
             int32 i = 0;
             entry_ref ref;
             while(msg->FindRef("refs", i, &ref) == B_OK) {
@@ -220,13 +279,28 @@ void KeysApplication::MessageReceived(BMessage* msg)
             break;
         }
         case M_KEY_EXPORT:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             ExportKey(msg);
             break;
         case M_KEY_DELETE:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             RemoveKey(msg);
+            break;
+        case M_KEY_COPY_SECRET:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
+            CopyKeyData(msg);
             break;
 
         case M_APP_DELETE:
+            if(msg->IsSourceRemote() || msg->WasDropped())
+                break;
+
             RemoveApp(msg);
             break;
         default:
@@ -449,7 +523,7 @@ void KeysApplication::HandleScripting(BMessage* msg)
             {
                 if(msg->what == B_CREATE_PROPERTY) {
                     const char* name = msg->GetString("name");
-                    if(!name || strcmp(name, "Master") == 0) {
+                    if(!name || strcasecmp(name, "Master") == 0) {
                         status = B_BAD_VALUE;
                         break;
                     }
@@ -471,7 +545,7 @@ void KeysApplication::HandleScripting(BMessage* msg)
             {
                 if(msg->what == B_DELETE_PROPERTY) {
                     const char* name = specifier.GetString("name");
-                    if(!name || strcmp(name, "Master") == 0) {
+                    if(!name || strcasecmp(name, "Master") == 0) {
                         status = B_BAD_VALUE;
                         break;
                     }
@@ -641,9 +715,9 @@ status_t KeysApplication::KeystoreBackup(BMessage* msg)
     }
 
     uint32 method;
-    BString password;
+    BString* password = new BString;
     if(msg->FindUInt32("method", &method) != B_OK ||
-    msg->FindString("password", &password) != B_OK) {
+    msg->FindString("password", password) != B_OK) {
         __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
         return B_BAD_DATA;
     }
@@ -656,7 +730,7 @@ status_t KeysApplication::KeystoreBackup(BMessage* msg)
         }
 // #if defined(USE_OPENSSL)
         case 'ssl ':
-            status = DoEncryptedKeystoreBackup(password.String());
+            status = DoEncryptedKeystoreBackup(password->String());
             break;
 // #endif
         default:
@@ -669,6 +743,14 @@ status_t KeysApplication::KeystoreBackup(BMessage* msg)
         reply.AddInt32(kConfigResult, status);
         window->PostMessage(&reply);
     }
+
+    /* Secure erase memory containing the password */
+    size_t passwordLength = password->Length();
+    char* passwordData = password->LockBuffer(0);
+    memzero(passwordData, passwordLength);
+    std::atomic_thread_fence(std::memory_order_seq_cst); // Force zero-ing after usage
+    password->UnlockBuffer(-1);
+    delete password;
 
     return status;
 }
@@ -712,7 +794,7 @@ void KeysApplication::WipeKeystoreContents(BMessage* msg)
     int32 count = ks->KeyringCount();
     for(int i = count - 1; i >= 0; i--) {
         // Master is protected, we can only clean it up
-        if(strcmp(ks->KeyringAt(i)->Identifier(), "Master") == 0) {
+        if(strcasecmp(ks->KeyringAt(i)->Identifier(), "Master") == 0) {
             BMessage data;
             data.AddString(kConfigKeyring, "Master");
             WipeKeyringContents(&data);
@@ -737,6 +819,11 @@ status_t KeysApplication::AddKeyring(BMessage* msg)
         __trace("Error: %s. No keyring name received.\n", strerror(B_BAD_DATA));
         return B_BAD_DATA;
     }
+
+	if(strcasecmp(keyring.String(), "Master") == 0) {
+		__trace("Error: a keyring cannot be created with the name \"Master\".\n");
+		return B_NOT_ALLOWED;
+	}
 
     if(ks->KeyringByName(keyring.String())) {
         __trace("Error: %s.\n", strerror(B_NAME_IN_USE));
@@ -898,6 +985,11 @@ status_t KeysApplication::RemoveKeyring(BMessage* msg)
         __trace("Error: bad data. No keyring name received or bad keyring name.\n");
         return B_BAD_DATA;
     }
+
+	if(strcasecmp(keyring.String(), "Master") == 0) {
+		__trace("Error: the \"Master\" keyring cannot be removed.\n");
+		return B_NOT_ALLOWED;
+	}
 
     status_t status = ks->RemoveKeyring(keyring.String(), true);
     if(status == B_OK)
@@ -1138,6 +1230,10 @@ status_t KeysApplication::ExportKey(BMessage* msg)
         reply.AddInt32(kConfigResult, status);
         window->PostMessage(&reply);
     }
+    else {
+        // Only the creator can handle the exported key file
+        file.SetPermissions(S_IRUSR | S_IWUSR);
+    }
 
     delete archive;
     return status;
@@ -1176,6 +1272,72 @@ status_t KeysApplication::RemoveKey(BMessage* msg)
     }
 
     return status;
+}
+
+status_t KeysApplication::CopyKeyData(BMessage* msg)
+{
+    if(!msg) {
+        __trace("Error: %s.", strerror(B_BAD_VALUE));
+        return B_BAD_VALUE;
+    }
+
+    BString keyring;
+    if(msg->FindString(kConfigKeyring, &keyring) != B_OK ||
+    !ks->KeyringByName(keyring.String())) {
+        __trace("Error: %s. No keyring name received or bad keyring name.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
+    }
+
+    BString id, alt;
+    BKeyType type = B_KEY_TYPE_ANY;
+    if(msg->FindString(kConfigKeyName, &id) != B_OK ||
+    msg->FindString(kConfigKeyAltName, &alt) != B_OK ||
+    msg->FindUInt32(kConfigKeyType, (uint32*)&type) != B_OK) {
+        __trace("Error: %s. There are missing fields.\n", strerror(B_BAD_DATA));
+        return B_BAD_DATA;
+    }
+
+    if(!(type > B_KEY_TYPE_ANY && type < B_KEY_TYPE_CERTIFICATE)) {
+        __trace("Error: %s.\n", strerror(B_BAD_TYPE));
+        return B_BAD_TYPE;
+    }
+
+    // Obtain key data pointer
+    const uint8* data = NULL;
+    size_t dataLength = 0;
+    if(type == B_KEY_TYPE_PASSWORD) {
+        BPasswordKey pwdkey;
+        BKeyStore().GetKey(keyring.String(), type, id.String(), alt.String(), false, pwdkey);
+        data = reinterpret_cast<const uint8*>(pwdkey.Password());
+        dataLength = strlen(pwdkey.Password());
+    }
+    else {
+        BKey key;
+        BKeyStore().GetKey(keyring.String(), type, id.String(), alt.String(), false, key);
+        data = reinterpret_cast<const uint8*>(key.Data());
+        dataLength = key.DataLength();
+    }
+    if(data == NULL)
+        return ENODATA;
+
+    // Copy that data into the clipboard
+    if(be_clipboard->Lock() && data != NULL) {
+        be_clipboard->Clear();
+
+        BMessage *clipmsg = be_clipboard->Data();
+        clipmsg->AddData("text/plain", B_MIME_TYPE,
+            reinterpret_cast<const char*>(data), dataLength);
+        status_t status = be_clipboard->Commit();
+        if(status != B_OK) {
+            fprintf(stderr, "Error saving data to clipboard.\n");
+        } else {
+            hasDataCopied = true;
+        }
+
+        be_clipboard->Unlock();
+    }
+
+    return B_OK;
 }
 
 // #pragma mark - Applications operations
@@ -1379,4 +1541,17 @@ void KeysApplication::_RebuildModel()
     ks->Reset();
     _InitKeystoreData(ks, &keystore);
     window->Update();
+}
+
+void KeysApplication::_ClipboardJanitor()
+{
+    if(hasDataCopied) {
+        if(be_clipboard->Lock()) {
+            be_clipboard->Clear();
+            status_t cleared = be_clipboard->Commit();
+            if(cleared == B_OK)
+                hasDataCopied = false;
+            be_clipboard->Unlock();
+        }
+    }
 }

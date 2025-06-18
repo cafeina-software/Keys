@@ -395,21 +395,23 @@ void KeyringView::_InitAppData(const char* data)
 
 void KeyringView::_CopyKey(KeystoreImp* ks)
 {
-    BKeyStore keystore;
-    const char* keyid = ((BStringField*)keylistview->CurrentSelection()->GetField(0))->String();
-    const char* secid = ((BStringField*)keylistview->CurrentSelection()->GetField(1))->String();
-    BKeyType type = ks->KeyringByName(keyringname)->KeyByIdentifier(keyid, secid)->Type();
+    BRow* selectedRow = keylistview->CurrentSelection();
+    if(!selectedRow)
+        return;
 
-    if(type == B_KEY_TYPE_PASSWORD) {
-        BPasswordKey pwdkey;
-        keystore.GetKey(keyringname, type, keyid, secid, false, pwdkey);
-        _CopyData(ks, keylistview, (const uint8*)pwdkey.Password());
-    }
-    else {
-        BKey key;
-        keystore.GetKey(keyringname, type, keyid, secid, false, key);
-        _CopyData(ks, keylistview, key.Data());
-    }
+    const char* keyid = ((BStringField*)selectedRow->GetField(0))->String();
+    const char* secid = ((BStringField*)selectedRow->GetField(1))->String();
+    BKeyType type = TypeForString(((BStringField*)selectedRow->GetField(2))->String());
+
+    BMessage* request = new BMessage(I_KEY_COPY_DATA);
+    request->AddString(kConfigKeyring, keyringname);
+    request->AddString(kConfigKeyName, keyid);
+    request->AddString(kConfigKeyAltName, secid);
+    request->AddUInt32(kConfigKeyType, static_cast<uint32>(type));
+
+    Window()->PostMessage(request);
+
+    delete request;
 }
 
 void KeyringView::_RemoveKey(KeystoreImp* ks, const char* id, const char* sec)

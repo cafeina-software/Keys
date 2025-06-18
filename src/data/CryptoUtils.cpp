@@ -292,3 +292,14 @@ int MakeDerivatedKey(const char* pass, const unsigned char* salt,
 
     return result;
 }
+
+void memzero(void* ptr, size_t len)
+{
+    volatile unsigned char* data = reinterpret_cast<volatile unsigned char*>(ptr);
+    if(!data)
+        return;
+
+    for(size_t i = 0; i < len; i++) {
+        data[i] = 0;
+    }
+}

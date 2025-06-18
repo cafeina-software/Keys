@@ -44,6 +44,7 @@
 
 /* Message subjects  */
 #define M_ASK_FOR_REFRESH           'rfsh'
+#define M_ASK_FOR_CLIPBOARD_CLEANUP 'clcl'
 #define M_KEYSTORE_BACKUP           'bkp_'
 #define M_KEYSTORE_RESTORE          'rstr'
 #define M_KEYSTORE_WIPE_CONTENTS    'wipe'
@@ -57,6 +58,7 @@
 #define M_KEY_GENERATE_PASSWORD     'kygn'
 #define M_KEY_IMPORT                'imky'
 #define M_KEY_EXPORT                'exky'
+#define M_KEY_COPY_SECRET           'cpky'
 #define M_KEY_DELETE                'rmky'
 #define M_APP_DELETE                'rmap'
 

@@ -423,6 +423,18 @@ void KeysWindow::MessageReceived(BMessage* msg)
             delete request;
             break;
         }
+        case I_KEY_COPY_DATA:
+        {
+            if((new BAlert(B_TRANSLATE("Copy key secret confirmation"),
+            B_TRANSLATE("Do you want to copy the key's contents into the clipboard?\n"
+            "After it is copied, it will remain in the clipboard for 30 seconds "
+            "or until the application is closed."), B_TRANSLATE("Copy secret data"),
+            B_TRANSLATE("Cancel"), NULL, B_WIDTH_FROM_LABEL, B_WARNING_ALERT))->Go() == 0) {
+                msg->what = M_KEY_COPY_SECRET;
+                be_app->PostMessage(msg);
+            }
+            break;
+        }
         case B_SAVE_REQUESTED:
         {
             uint32 what;
