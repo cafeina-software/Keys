@@ -465,6 +465,21 @@ BHandler* KeysApplication::ResolveSpecifier(BMessage* msg, int32 index,
 
 void KeysApplication::HandleScripting(BMessage* msg)
 {
+    { // Check if the remote scripting command was received from HEY
+        BMessenger retAddr = msg->ReturnAddress();
+        bool targetLocal = retAddr.IsTargetLocal();
+        team_id team = retAddr.Team();
+        app_info info{};
+
+        status_t result = be_roster->GetRunningAppInfo(team, &info);
+        if(result == B_OK && !targetLocal) {
+            if(strcasecmp(info.signature, "application/x-amezei-hey") != 0) {
+                printf("Received scripting commands from a source that is not HEY.\n");
+                return;
+            }
+        }
+    }
+
     BMessage reply(B_REPLY);
     int32 index = 0;
     BMessage specifier;
@@ -1332,6 +1347,12 @@ status_t KeysApplication::CopyKeyData(BMessage* msg)
             fprintf(stderr, "Error saving data to clipboard.\n");
         } else {
             hasDataCopied = true;
+
+            // Hash the data to later know if it is still in memory
+            BMemoryIO* secretMemory = new BMemoryIO(data, dataLength);
+            clipboardDataHash.SetSize(0); // Clear previous contents
+            SHA256CheckSum(secretMemory, dataLength, &clipboardDataHash);
+            delete secretMemory;
         }
 
         be_clipboard->Unlock();
@@ -1547,10 +1568,42 @@ void KeysApplication::_ClipboardJanitor()
 {
     if(hasDataCopied) {
         if(be_clipboard->Lock()) {
-            be_clipboard->Clear();
-            status_t cleared = be_clipboard->Commit();
-            if(cleared == B_OK)
-                hasDataCopied = false;
+            // Check first if what we have is a secret copied or something else
+            BMessage* clipData = be_clipboard->Data();
+            const void* ptr = NULL;
+            ssize_t len = 0;
+            status_t findResult = clipData->FindData("text/plain", B_MIME_TYPE,
+                &ptr, &len);
+
+            if(findResult == B_OK && ptr) { // Given that we have clipboard data,
+                // hash it against the stored hash
+                BMemoryIO clipDataMemory(ptr, len);
+                BMallocIO hashAlloc;
+                status_t hashResult = SHA256CheckSum(&clipDataMemory, len, &hashAlloc);
+                if(hashResult != B_OK) {
+                    be_clipboard->Unlock();
+                    return; // Internal error
+                }
+                bool secretIsInMemory = memcmp(clipboardDataHash.Buffer(), hashAlloc.Buffer(), len) == 0;
+
+                // Secret is still in memory...
+                if(secretIsInMemory) {
+                    // so let's first overwrite the clipboard data memory with zeroes
+                    unsigned char* zeroMemory = new unsigned char[len];
+                    memset(zeroMemory, 0, len);
+                    clipData->ReplaceData("text/plain", B_MIME_TYPE, 0, zeroMemory, len);
+                    be_clipboard->Commit();
+
+                    // Now clear the clipboard
+                    be_clipboard->Clear();
+                    status_t cleared = be_clipboard->Commit();
+                    if(cleared == B_OK)
+                        hasDataCopied = false;
+
+                    delete[] zeroMemory;
+                }
+            }
+
             be_clipboard->Unlock();
         }
     }

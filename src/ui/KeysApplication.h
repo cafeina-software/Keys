@@ -76,6 +76,7 @@ private:
     const char     *inFocus;
     bool            hasDataCopied;
     BMessageRunner* clipboardCleanerRunner;
+    BMallocIO       clipboardDataHash;
 };
 
 #endif /* __KEY_APP_H_ */

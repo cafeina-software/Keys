@@ -497,7 +497,7 @@ void KeysWindow::SetUIStatus(ui_status status, const char* focus)
             [[fallthrough]];
         case S_UI_NO_KEYRING_IN_FOCUS:
         {
-            currentKeyring = NULL;
+            currentKeyring = "";
 
             fRemKeyring->SetEnabled(false);
             fMenuKeyring->SetEnabled(false);
@@ -683,11 +683,13 @@ status_t KeysWindow::_AddKeyring()
 
 status_t KeysWindow::_RemoveKeyring(const char* target)
 {
-    const char* keyring;
-    if(!target)
-        keyring = currentKeyring;
-    else
-        keyring = target;
+    const char* keyring = target;
+    if(!keyring) {
+        if(currentKeyring)
+            keyring = currentKeyring;
+        else
+            return B_ERROR;
+    }
 
     if(!keyring || strcmp(keyring, "") == 0) {
         (new BAlert(B_TRANSLATE("Remove keyring: error"),

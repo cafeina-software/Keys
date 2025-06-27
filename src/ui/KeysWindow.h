@@ -127,7 +127,7 @@ private:
     std::list<KeyringView*> keyringviewlist;
     BKeyStore*              keystore;
     KeystoreImp*            ks;
-    const char*             currentKeyring;
+    BString                 currentKeyring;
     ui_status               uiStatus;
     KeyMsgRefFilter        *fFilter;
 
